@@ -1,8 +1,8 @@
 // src/components/NodeGraph.jsx
 import React, { useEffect, useRef } from 'react';
-import LiteGraph from 'litegraph.js';
 import 'litegraph.js/css/litegraph.css';
-import { useStore } from '../store';
+import { registerAllNodes, nodeTypeMapping } from '../nodes/registerNodes';
+import useStore from '../store';
 
 function NodeGraph({ audioRef }) {
   const canvasRef = useRef(null);
@@ -13,41 +13,114 @@ function NodeGraph({ audioRef }) {
   
   // Initialize graph
   useEffect(() => {
-    if (!canvasRef.current) return;
-    
-    const graph = new LiteGraph.LGraph();
-    const canvas = new LiteGraph.LGraphCanvas(canvasRef.current, graph);
-    
-    graphRef.current = graph;
-    canvasRef.current = canvas;
-    setGraph(graph);
-    
-    // Add existing nodes to the graph
-    nodes.forEach(node => {
-      const liteNode = LiteGraph.createNode(node.type);
-      liteNode.id = node.id;
-      liteNode.pos = node.position;
-      graph.add(liteNode);
-    });
-    
-    graph.start();
-    
-    return () => {
-      graph.stop();
+    const initializeGraph = () => {
+      if (!canvasRef.current || !window.LiteGraph || !window.LGraphCanvas) {
+        console.log('Waiting for LiteGraph to load...');
+        return;
+      }
+      
+      console.log('Initializing LiteGraph...');
+      
+      const LiteGraph = window.LiteGraph;
+      const LGraphCanvas = window.LGraphCanvas;
+      
+      // Set canvas size properly
+      const canvas = canvasRef.current;
+      const container = canvas.parentElement;
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      
+      // Register all custom nodes first
+      registerAllNodes();
+      
+      const graph = new LiteGraph.LGraph();
+      const graphCanvas = new LGraphCanvas(canvas, graph);
+      
+      // Configure the graph canvas
+      graphCanvas.background_image = null;
+      graphCanvas.render_shadows = false;
+      graphCanvas.render_canvas_border = false;
+      
+      graphRef.current = graph;
+      setGraph(graph);
+      
+      // Add existing nodes to the graph
+      nodes.forEach(node => {
+        const mappedType = nodeTypeMapping[node.type] || node.type;
+        const liteNode = LiteGraph.createNode(mappedType);
+        if (liteNode) {
+          liteNode.id = node.id;
+          liteNode.pos = node.position;
+          graph.add(liteNode);
+        }
+      });
+      
+      // Center the view
+      graphCanvas.ds.scale = 1.0;
+      graphCanvas.ds.offset = [0, 0];
+      
+      graph.start();
     };
+
+    // Try to initialize immediately
+    initializeGraph();
+    
+    // If LiteGraph isn't loaded yet, wait for it
+    const checkInterval = setInterval(() => {
+      if (window.LiteGraph && window.LGraphCanvas) {
+        clearInterval(checkInterval);
+        initializeGraph();
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(checkInterval);
+      if (graphRef.current) {
+        graphRef.current.stop();
+      }
+    };
+  }, []);
+
+  // Handle canvas resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const container = canvas.parentElement;
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+        
+        // Trigger a redraw if graph canvas exists
+        if (window.LGraphCanvas && graphRef.current) {
+          const graphCanvas = canvasRef.current.graphCanvas;
+          if (graphCanvas) {
+            graphCanvas.setDirty(true, true);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
   
   // Handle adding nodes from the library
   useEffect(() => {
-    if (!graphRef.current) return;
+    if (!graphRef.current || !window.LiteGraph) return;
+    
+    const LiteGraph = window.LiteGraph;
     
     const handleAddNode = (nodeType) => {
-      const node = LiteGraph.createNode(nodeType);
-      const canvas = canvasRef.current;
+      const mappedType = nodeTypeMapping[nodeType] || nodeType;
+      const node = LiteGraph.createNode(mappedType);
+      if (!node) {
+        console.warn(`Could not create node of type: ${mappedType} (original: ${nodeType})`);
+        return;
+      }
       
       // Position new node near the center
-      const centerX = canvas.canvas.width / (2 * canvas.ds.scale) - canvas.ds.offset[0];
-      const centerY = canvas.canvas.height / (2 * canvas.ds.scale) - canvas.ds.offset[1];
+      const centerX = 400;
+      const centerY = 300;
       
       node.pos = [centerX, centerY];
       graphRef.current.add(node);
@@ -72,18 +145,27 @@ function NodeGraph({ audioRef }) {
   
   // Handle node drag from library
   useEffect(() => {
-    const canvas = canvasRef.current?.canvas;
-    if (!canvas) return;
+    const canvas = canvasRef.current;
+    if (!canvas || !window.LiteGraph) return;
+    
+    const LiteGraph = window.LiteGraph;
     
     const handleDrop = (e) => {
+      e.preventDefault();
       const nodeType = e.dataTransfer.getData('nodeType');
-      if (!nodeType) return;
+      if (!nodeType || !graphRef.current) return;
       
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / graphRef.current.ds.scale - graphRef.current.ds.offset[0];
-      const y = (e.clientY - rect.top) / graphRef.current.ds.scale - graphRef.current.ds.offset[1];
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       
-      const node = LiteGraph.createNode(nodeType);
+      const mappedType = nodeTypeMapping[nodeType] || nodeType;
+      const node = LiteGraph.createNode(mappedType);
+      if (!node) {
+        console.warn(`Could not create node of type: ${mappedType} (original: ${nodeType})`);
+        return;
+      }
+      
       node.pos = [x, y];
       graphRef.current.add(node);
       

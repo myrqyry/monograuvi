@@ -1,6 +1,6 @@
 // src/components/NodeLibrary.jsx
 import React from 'react';
-import { useStore } from '../store';
+import useStore from '../store';
 
 const categories = [
   { id: 'audio', name: 'Audio', icon: 'ri-music-2-line' },
@@ -62,7 +62,10 @@ function NodeLibrary() {
                   onDragStart={e => {
                     e.dataTransfer.setData('nodeType', node.id);
                   }}
-                  onClick={() => addNode(node.id)}
+                  onClick={() => {
+                    // Trigger node addition through store
+                    useStore.setState({ lastAddedNode: node.id });
+                  }}
                 >
                   <div className="node-icon">
                     <i className={node.icon}></i>

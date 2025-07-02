@@ -1,5 +1,5 @@
 // src/store.js
-import create from 'zustand';
+import { create } from 'zustand';
 
 const useStore = create((set, get) => ({
   audioContext: null,
@@ -11,8 +11,7 @@ const useStore = create((set, get) => ({
   setGraph: (graph) => set({ graph }),
   
   addNode: (node) => set((state) => ({
-    nodes: [...state.nodes, node],
-    lastAddedNode: node.type
+    nodes: [...state.nodes, node]
   })),
   
   updateNodePosition: (nodeId, position) => set((state) => ({

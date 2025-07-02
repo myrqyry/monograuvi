@@ -1,7 +1,7 @@
-# Music Video Creator
+# monograuvi
 
 ## Overview
-The Music Video Creator is a web application designed for creating dynamic music videos with reactive audio visuals. Users can connect various audio feature extractors to visual elements, including shaders, images, videos, timed lyrics, and customizable typographic displays, all within an intuitive node graph interface.
+monograuvi is a web application designed for creating dynamic music videos with reactive audio visuals. Users can connect various audio feature extractors to visual elements, including shaders, images, videos, timed lyrics, and customizable typographic displays, all within an intuitive node graph interface.
 
 ## Features
 - **Node Graph Layout**: A user-friendly interface that allows users to connect audio feature extractors to visual elements.
@@ -12,7 +12,7 @@ The Music Video Creator is a web application designed for creating dynamic music
 
 ## Project Structure
 ```
-music-video-creator
+monograuvi
 ├── src
 │   ├── App.jsx
 │   ├── index.css
@@ -25,66 +25,88 @@ music-video-creator
 │   ├── components
 │   │   ├── NodeGraph.jsx
 │   │   ├── NodeLibrary.jsx
-│   │   ├── MusicPlayer.jsx
-│   │   ├── ThemeSelector.jsx
-│   │   ├── AudioExtractors.js
-│   │   ├── VisualElements.js
-│   │   └── Canvas.js
-│   ├── audio
-│   │   ├── FeatureExtractor.js
-│   │   ├── FFTAnalyzer.js
-│   │   ├── BeatDetector.js
-│   │   └── PitchDetector.js
-│   ├── visuals
-│   │   ├── ShaderManager.js
-│   │   ├── AnimationEngine.js
-│   │   ├── ParticleSystem.js
-│   │   └── Typography.js
-│   ├── shaders
-│   │   ├── vertex.glsl
-│   │   ├── fragment.glsl
-│   │   └── audio-reactive.glsl
-│   ├── nodes
-│   │   ├── BaseNode.js
-│   │   ├── AudioNode.js
-│   │   ├── VisualNode.js
-│   │   └── OutputNode.js
-│   ├── utils
-│   │   ├── WebGLUtils.js
-│   │   ├── AudioUtils.js
-│   │   └── MathUtils.js
-│   └── assets
-│       ├── fonts
-│       └── presets
-├── package.json
-├── webpack.config.js
-└── README.md
+# monograuvi
+
+## Overview
+
+monograuvi is a web application designed for creating dynamic music videos with reactive audio visuals. Users can connect various audio feature extractors to visual elements, including shaders, images, videos, timed lyrics, and customizable typographic displays, all within an intuitive node graph interface.
+
+## Features
+
+- **Node Graph Layout**: A user-friendly interface that allows users to connect audio feature extractors to visual elements.
+- **Audio Feature Extraction**: Includes beat detection, pitch detection, FFT analysis, and more.
+- **Visual Elements**: Shaders, images, videos, lyrics, and typography.
+- **Customizable Themes**: Switch between different visual themes.
+- **Real-Time Preview**: Instantly see changes as you edit nodes and connections.
+
+## Project Structure
+
+```text
+src/
+  App.jsx
+  index.css
+  index.html
+  main.js
+  store.js
+  assets/
+    fonts/
+    presets/
+  audio/
+    BeatDetector.js
+    FeatureExtractor.js
+    FFTAnalyzer.js
+    PitchDetector.js
+  components/
+    AudioExtractors.js
+    Canvas.js
+    MusicPlayer.jsx
+    NodeGraph.js
+    NodeGraph.jsx
+    NodeLibrary.jsx
+    ThemeSelector.jsx
+    VisualElements.js
+  nodes/
+    AudioNode.js
+    BaseNode.js
+    OutputNode.js
+    VisualNode.js
+  shaders/
+    audio-reactive.glsl
+    fragment.glsl
+    vertex.glsl
+  styles/
+    main.css
+    node-graph.css
+  utils/
+    AudioUtils.js
+    MathUtils.js
+    WebGLUtils.js
+  visuals/
+    AnimationEngine.js
+    ParticleSystem.js
+    ShaderManager.js
+    Typography.js
 ```
 
 ## Installation
+
 1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/monograuvi.git
+   cd monograuvi
    ```
-   git clone https://github.com/yourusername/music-video-creator.git
-   ```
-2. Navigate to the project directory:
-   ```
-   cd music-video-creator
-   ```
-3. Install dependencies:
-   ```
+
+2. Install dependencies:
+
+   ```bash
    npm install
    ```
 
 ## Usage
+
 1. Start the development server:
-   ```
-   npm start
-   ```
-2. Open your browser and navigate to `http://localhost:3000` to access the application.
-3. Use the node graph interface to connect audio feature extractors to visual elements and create your music video.
 
-## Contributing
-Contributions are welcome! Please submit a pull request or open an issue for any suggestions or improvements.
-
-## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+   ```bash
+   npm run dev
+   ```

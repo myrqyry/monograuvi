@@ -1,6 +1,9 @@
+import FeatureExtractor from './FeatureExtractor.js';
+
 class PitchDetector extends FeatureExtractor {
     constructor(audioContext) {
         super(audioContext);
+        this.audioContext = audioContext;
         this.pitch = null;
     }
 

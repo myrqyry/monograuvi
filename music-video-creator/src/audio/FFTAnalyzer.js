@@ -1,6 +1,9 @@
+import FeatureExtractor from './FeatureExtractor.js';
+
 class FFTAnalyzer extends FeatureExtractor {
     constructor(audioContext) {
         super(audioContext);
+        this.audioContext = audioContext;
         this.analyser = this.audioContext.createAnalyser();
         this.analyser.fftSize = 2048;
         this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);

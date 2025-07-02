@@ -1,5 +1,3 @@
-import React from 'react';
-
 class Typography {
     constructor(text, options) {
         this.text = text;

@@ -1,6 +1,9 @@
+import FeatureExtractor from './FeatureExtractor.js';
+
 class BeatDetector extends FeatureExtractor {
     constructor(audioContext) {
         super(audioContext);
+        this.audioContext = audioContext;
         this.threshold = 0.1; // Sensitivity threshold for beat detection
         this.lastBeatTime = 0;
     }

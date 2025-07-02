@@ -1,7 +1,7 @@
 // src/components/MusicPlayer.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { useStore } from '../store';
+import useStore from '../store';
 
 
 function MusicPlayer({ audioRef }) {
@@ -19,16 +19,18 @@ function MusicPlayer({ audioRef }) {
 
     wavesurfer.current = WaveSurfer.create({
       container: waveformRef.current,
-      waveColor: 'var(--ctp-mocha-surface2)',
-      progressColor: 'var(--ctp-mocha-mauve)',
-      cursorColor: 'var(--ctp-mocha-lavender)',
+      waveColor: 'rgba(255, 255, 255, 0.3)',
+      progressColor: 'var(--accent-primary)',
+      cursorColor: 'var(--accent-secondary)',
       cursorWidth: 2,
       barWidth: 2,
-      barRadius: 3,
-      barGap: 2,
-      height: 80,
+      barRadius: 2,
+      barGap: 1,
+      height: 50,
       backend: 'WebAudio',
       audioContext: audioContext || undefined,
+      interact: true,
+      responsive: true,
     });
 
     wavesurfer.current.on('ready', () => {
@@ -74,7 +76,7 @@ function MusicPlayer({ audioRef }) {
 
   return (
     <div className="music-player">
-      <div className="player-controls">
+      <div className="player-left">
         <button onClick={handlePlayPause} className="play-pause-btn">
           {isPlaying ? (
             <i className="ri-pause-fill"></i>
@@ -82,17 +84,40 @@ function MusicPlayer({ audioRef }) {
             <i className="ri-play-fill"></i>
           )}
         </button>
-        <input
-          type="file"
-          accept="audio/*"
-          onChange={handleFileChange}
-          className="audio-upload-input"
-          style={{ marginLeft: '1rem' }}
-        />
+        <div className="now-playing">
+          <div className="track-title">{trackTitle}</div>
+          <div className="track-artist">{trackArtist || 'Unknown Artist'}</div>
+        </div>
+      </div>
+
+      <div className="player-center">
         <div className="time-display">
           <span>{formatTime(currentTime)}</span>
           <span> / </span>
           <span>{formatTime(duration)}</span>
+        </div>
+        <div ref={waveformRef} className="waveform-container"></div>
+        <label className="audio-upload-btn">
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          <i className="ri-upload-line"></i> Load Track
+        </label>
+      </div>
+
+      <div className="player-right">
+        <div className="audio-features">
+          <div className="feature">
+            <span>BPM</span>
+            <span>128</span>
+          </div>
+          <div className="feature">
+            <span>KEY</span>
+            <span>Cm</span>
+          </div>
         </div>
         <div className="volume-control">
           <i className="ri-volume-down-line"></i>
@@ -101,6 +126,7 @@ function MusicPlayer({ audioRef }) {
             min="0"
             max="1"
             step="0.01"
+            defaultValue="1"
             className="volume-slider"
             onChange={e => {
               if (wavesurfer.current) {
@@ -111,25 +137,8 @@ function MusicPlayer({ audioRef }) {
           <i className="ri-volume-up-line"></i>
         </div>
         <button className="btn-icon">
-          <i className="ri-play-list-line"></i>
+          <i className="ri-settings-3-line"></i>
         </button>
-      </div>
-      <div ref={waveformRef} className="waveform-container"></div>
-      <div className="audio-info">
-        <div className="now-playing">
-          <div className="track-title">{trackTitle}</div>
-          <div className="track-artist">{trackArtist}</div>
-        </div>
-        <div className="audio-features">
-          <div className="feature">
-            <span>BPM:</span>
-            <span>128</span>
-          </div>
-          <div className="feature">
-            <span>Key:</span>
-            <span>C Minor</span>
-          </div>
-        </div>
       </div>
     </div>
   );

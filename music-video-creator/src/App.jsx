@@ -5,7 +5,7 @@ import NodeGraph from './components/NodeGraph';
 import NodeLibrary from './components/NodeLibrary';
 import MusicPlayer from './components/MusicPlayer';
 import ThemeSelector from './components/ThemeSelector';
-import { useStore } from './store';
+import useStore from './store';
 import './index.css';
 
 function App() {
@@ -38,7 +38,7 @@ function App() {
               <i className="ri-layout-grid-line"></i>
             )}
           </button>
-          <h1 className="app-title">Audio-Visual Symphony</h1>
+          <h1 className="app-title">monograuvi</h1>
         </div>
         <ThemeSelector currentTheme={theme} onChangeTheme={setTheme} />
       </header>
@@ -61,7 +61,4 @@ function App() {
   );
 }
 
-// Initialize app
-const container = document.getElementById('root');
-const root = createRoot(container);
-root.render(<App />);
+export default App;
