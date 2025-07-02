@@ -1,0 +1,58 @@
+.node-graph {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 20px;
+    background-color: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 8px;
+}
+
+.node-graph .extractors {
+    flex: 1;
+    margin-right: 20px;
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.node-graph .visual-elements {
+    flex: 1;
+    margin-left: 20px;
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.node {
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px 0;
+    transition: background-color 0.3s;
+}
+
+.node:hover {
+    background-color: #4a4a4a;
+}
+
+.connector {
+    width: 2px;
+    background-color: #777;
+    position: absolute;
+    z-index: -1;
+}
+
+.selected {
+    border: 2px solid #ffcc00;
+}
+
+.node-title {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.node-content {
+    color: #cccccc;
+}

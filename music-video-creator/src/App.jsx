@@ -1,0 +1,67 @@
+// src/App.jsx
+import React, { useState, useRef, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import NodeGraph from './components/NodeGraph';
+import NodeLibrary from './components/NodeLibrary';
+import MusicPlayer from './components/MusicPlayer';
+import ThemeSelector from './components/ThemeSelector';
+import { useStore } from './store';
+import './index.css';
+
+function App() {
+  const [libraryVisible, setLibraryVisible] = useState(true);
+  const [theme, setTheme] = useState('catppuccin-mocha');
+  const audioRef = useRef(null);
+  const setAudioContext = useStore(state => state.setAudioContext);
+
+  useEffect(() => {
+    // Initialize audio context when app loads
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    setAudioContext(audioContext);
+    
+    return () => {
+      if (audioContext) audioContext.close();
+    };
+  }, []);
+
+  return (
+    <div className={`app-container theme-${theme}`}>
+      <header className="app-header">
+        <div className="flex items-center">
+          <button 
+            onClick={() => setLibraryVisible(!libraryVisible)}
+            className="toggle-library-btn"
+          >
+            {libraryVisible ? (
+              <i className="ri-layout-left-line"></i>
+            ) : (
+              <i className="ri-layout-grid-line"></i>
+            )}
+          </button>
+          <h1 className="app-title">Audio-Visual Symphony</h1>
+        </div>
+        <ThemeSelector currentTheme={theme} onChangeTheme={setTheme} />
+      </header>
+
+      <div className="main-content">
+        {libraryVisible && (
+          <div className="node-library-panel">
+            <NodeLibrary />
+          </div>
+        )}
+        <div className={`graph-area ${libraryVisible ? '' : 'full-width'}`}>
+          <NodeGraph audioRef={audioRef} />
+        </div>
+      </div>
+
+      <div className="music-player-container">
+        <MusicPlayer audioRef={audioRef} />
+      </div>
+    </div>
+  );
+}
+
+// Initialize app
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(<App />);
