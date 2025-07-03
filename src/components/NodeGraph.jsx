@@ -1,7 +1,8 @@
 // src/components/NodeGraph.jsx
 import React, { useEffect, useRef } from 'react';
 import 'litegraph.js/css/litegraph.css';
-import { registerAllNodes, nodeTypeMapping } from '../nodes/registerNodes';
+/* global LiteGraph */
+import { registerAllNodes, nodeTypeMapping, nodeCategories, nodeDescriptions } from '../nodes/registerNodes';
 import useStore from '../store';
 import { QuickConnection } from '../utils/QuickConnection';
 
@@ -196,44 +197,13 @@ function NodeGraph({ audioRef }) {
 
     const LiteGraph = window.LiteGraph;
     const graphCanvas = new LiteGraph.LGraphCanvas(canvasRef.current, graphRef.current);
-    canvasRef.current.graphCanvas = graphCanvas; // Ensure graphCanvas is set
+    canvasRef.current.graphCanvas = graphCanvas;
 
     const quickConnection = new QuickConnection();
     quickConnection.initListeners(graphCanvas);
 
     return () => {
       quickConnection.enabled = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !window.LiteGraph) return;
-
-    const LiteGraph = window.LiteGraph;
-
-    const handleContextMenu = (e) => {
-      e.preventDefault();
-
-      const menu = LiteGraph.showMenu(e);
-      if (menu) {
-        const rect = menu.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        if (rect.right > viewportWidth) {
-          menu.style.left = `${viewportWidth - rect.width}px`;
-        }
-        if (rect.bottom > viewportHeight) {
-          menu.style.top = `${viewportHeight - rect.height}px`;
-        }
-      }
-    };
-
-    canvas.addEventListener('contextmenu', handleContextMenu);
-
-    return () => {
-      canvas.removeEventListener('contextmenu', handleContextMenu);
     };
   }, []);
 

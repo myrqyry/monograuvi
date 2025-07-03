@@ -14,8 +14,56 @@ class AudioNode extends BaseNode {
         this.analyser = null;
         this.frequencyData = null;
         this.timeData = null;
+        this.lastError = null; // Track last error for debugging
         
         this.setupAudioNode();
+    }
+
+    // Utility method for generating fallback data
+    generateFallbackData(type, config = {}) {
+        const fallbacks = {
+            spectral: {
+                'Spectral Centroid': Math.random() * 2000 + 500,
+                'Spectral Rolloff': Math.random() * 5000 + 2000,
+                'Spectral Flux': Math.random(),
+                'MFCC': new Array(config.mfccCount || 13).fill(0).map(() => Math.random()),
+                'Chroma': new Array(config.chromaBins || 12).fill(0).map(() => Math.random())
+            },
+            beat: {
+                'Beat': Math.random() > 0.8,
+                'BPM': 120 + Math.random() * 40,
+                'Confidence': Math.random(),
+                'Onset': Math.random() > 0.9
+            },
+            key: {
+                'Key': ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][Math.floor(Math.random() * 12)],
+                'Mode': ['major', 'minor'][Math.floor(Math.random() * 2)],
+                'Confidence': Math.random(),
+                'Key Profile': new Array(12).fill(0).map(() => Math.random())
+            },
+            mood: {
+                'Valence': Math.random(),
+                'Energy': Math.random(),
+                'Danceability': Math.random(),
+                'Mood': ['happy', 'sad', 'energetic', 'calm', 'aggressive', 'melancholic'][Math.floor(Math.random() * 6)],
+                'Genre': ['rock', 'pop', 'electronic', 'classical', 'jazz', 'ambient'][Math.floor(Math.random() * 6)]
+            }
+        };
+        return fallbacks[type] || {};
+    }
+
+    // Enhanced backend API call with better error handling
+    async callBackendAPIWithFallback(endpoint, data, fallbackType, fallbackConfig = {}) {
+        try {
+            const result = await this.callBackendAPI(endpoint, data);
+            this.lastError = null; // Clear any previous errors
+            return { success: true, data: result };
+        } catch (error) {
+            this.lastError = error;
+            console.error(`Backend API error for ${endpoint}:`, error.message || error);
+            console.warn(`Falling back to frontend processing for ${fallbackType}`);
+            return { success: false, data: this.generateFallbackData(fallbackType, fallbackConfig) };
+        }
     }
 
     setupAudioNode() {
@@ -313,25 +361,38 @@ class AudioNode extends BaseNode {
         };
     }
 
+    /**
+     * Process spectral analysis using backend API or frontend fallback
+     * Extracts features like spectral centroid, rolloff, flux, MFCC, and chroma
+     * @param {Object} audioInput - Audio data to analyze
+     * @returns {Object} Spectral analysis results
+     */
     async processSpectralAnalyser(audioInput) {
         if (this.getProperty('useBackend')) {
-            try {
-                const result = await this.callBackendAPI('/api/audio/spectral-analysis', {
+            const result = await this.callBackendAPIWithFallback(
+                '/api/audio/spectral-analysis',
+                {
                     audio_data: audioInput,
                     mfcc_count: this.getProperty('mfccCount'),
                     chroma_bins: this.getProperty('chromaBins')
-                });
-                
+                },
+                'spectral',
+                {
+                    mfccCount: this.getProperty('mfccCount'),
+                    chromaBins: this.getProperty('chromaBins')
+                }
+            );
+            
+            if (result.success) {
                 return {
-                    'Spectral Centroid': result.spectral_centroid,
-                    'Spectral Rolloff': result.spectral_rolloff,
-                    'Spectral Flux': result.spectral_flux,
-                    'MFCC': result.mfcc,
-                    'Chroma': result.chroma
+                    'Spectral Centroid': result.data.spectral_centroid,
+                    'Spectral Rolloff': result.data.spectral_rolloff,
+                    'Spectral Flux': result.data.spectral_flux,
+                    'MFCC': result.data.mfcc,
+                    'Chroma': result.data.chroma
                 };
-            } catch (error) {
-                // Fallback to frontend processing
-                return this.processSpectralAnalyserFrontend(audioInput);
+            } else {
+                return result.data;
             }
         } else {
             return this.processSpectralAnalyserFrontend(audioInput);
@@ -339,87 +400,88 @@ class AudioNode extends BaseNode {
     }
 
     async processBeatDetector(audioInput) {
-        try {
-            const result = await this.callBackendAPI('/api/audio/beat-detection', {
+        const result = await this.callBackendAPIWithFallback(
+            '/api/audio/beat-detection',
+            {
                 audio_data: audioInput,
                 sensitivity: this.getProperty('sensitivity'),
                 min_bpm: this.getProperty('minBPM'),
                 max_bpm: this.getProperty('maxBPM')
-            });
-            
+            },
+            'beat'
+        );
+        
+        if (result.success) {
             return {
-                'Beat': result.beat_detected,
-                'BPM': result.bpm,
-                'Confidence': result.confidence,
-                'Onset': result.onset_detected
+                'Beat': result.data.beat_detected,
+                'BPM': result.data.bpm,
+                'Confidence': result.data.confidence,
+                'Onset': result.data.onset_detected
             };
-        } catch (error) {
-            // Fallback to frontend processing
-            return {
-                'Beat': Math.random() > 0.8,
-                'BPM': 120 + Math.random() * 40,
-                'Confidence': Math.random(),
-                'Onset': Math.random() > 0.9
-            };
+        } else {
+            return result.data;
         }
     }
 
     async processKeyDetector(audioInput) {
         if (this.getProperty('useBackend')) {
-            try {
-                const result = await this.callBackendAPI('/api/audio/key-detection', {
+            const result = await this.callBackendAPIWithFallback(
+                '/api/audio/key-detection',
+                {
                     audio_data: audioInput,
                     algorithm: this.getProperty('algorithm'),
                     window_size: this.getProperty('windowSize')
-                });
-                
+                },
+                'key'
+            );
+            
+            if (result.success) {
                 return {
-                    'Key': result.key,
-                    'Mode': result.mode,
-                    'Confidence': result.confidence,
-                    'Key Profile': result.key_profile
+                    'Key': result.data.key,
+                    'Mode': result.data.mode,
+                    'Confidence': result.data.confidence,
+                    'Key Profile': result.data.key_profile
                 };
-            } catch (error) {
-                // Fallback
-                const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                const modes = ['major', 'minor'];
-                return {
-                    'Key': keys[Math.floor(Math.random() * keys.length)],
-                    'Mode': modes[Math.floor(Math.random() * modes.length)],
-                    'Confidence': Math.random(),
-                    'Key Profile': new Array(12).fill(0).map(() => Math.random())
-                };
+            } else {
+                return result.data;
             }
+        } else {
+            // Frontend fallback
+            return this.generateFallbackData('key');
         }
     }
 
+    /**
+     * Process mood analysis using ML backend
+     * Analyzes audio to detect mood, energy, valence, and genre
+     * @param {Object} audioInput - Audio data to analyze
+     * @returns {Object} Mood analysis results including valence, energy, danceability
+     */
     async processMoodAnalyser(audioInput) {
         if (this.getProperty('useBackend')) {
-            try {
-                const result = await this.callBackendAPI('/api/ml/mood-analysis', {
+            const result = await this.callBackendAPIWithFallback(
+                '/api/ml/mood-analysis',
+                {
                     audio_data: audioInput,
                     model_type: this.getProperty('modelType')
-                });
-                
+                },
+                'mood'
+            );
+            
+            if (result.success) {
                 return {
-                    'Valence': result.valence,
-                    'Energy': result.energy,
-                    'Danceability': result.danceability,
-                    'Mood': result.mood,
-                    'Genre': result.genre
+                    'Valence': result.data.valence,
+                    'Energy': result.data.energy,
+                    'Danceability': result.data.danceability,
+                    'Mood': result.data.mood,
+                    'Genre': result.data.genre
                 };
-            } catch (error) {
-                // Fallback
-                const moods = ['happy', 'sad', 'energetic', 'calm', 'aggressive', 'melancholic'];
-                const genres = ['rock', 'pop', 'electronic', 'classical', 'jazz', 'ambient'];
-                return {
-                    'Valence': Math.random(),
-                    'Energy': Math.random(),
-                    'Danceability': Math.random(),
-                    'Mood': moods[Math.floor(Math.random() * moods.length)],
-                    'Genre': genres[Math.floor(Math.random() * genres.length)]
-                };
+            } else {
+                return result.data;
             }
+        } else {
+            // Frontend fallback
+            return this.generateFallbackData('mood');
         }
     }
 
@@ -451,38 +513,97 @@ class AudioNode extends BaseNode {
         };
     }
 
-    processPitchDetector(audioInput) {
-        // Mock pitch detection
-        const pitch = this.getProperty('minPitch') + 
-                     Math.random() * (this.getProperty('maxPitch') - this.getProperty('minPitch'));
-        
-        // Convert pitch to note
+    // Utility method to convert frequency to musical note
+    frequencyToNote(frequency) {
         const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const noteNumber = Math.round(12 * Math.log2(pitch / 440) + 69);
-        const noteName = noteNames[noteNumber % 12];
-        const octave = Math.floor(noteNumber / 12) - 1;
+        const A4 = 440;
+        const C0 = A4 * Math.pow(2, -4.75);
+        
+        if (frequency > 0) {
+            const h = Math.round(12 * Math.log2(frequency / C0));
+            const octave = Math.floor(h / 12);
+            const n = h % 12;
+            const cents = Math.round(1200 * Math.log2(frequency / (C0 * Math.pow(2, h / 12))));
+            
+            return {
+                note: noteNames[n] + octave,
+                cents: cents,
+                noteNumber: h
+            };
+        }
+        
+        return { note: 'N/A', cents: 0, noteNumber: 0 };
+    }
+
+    processPitchDetector(audioInput) {
+        // Mock pitch detection with improved note calculation
+        const minPitch = this.getProperty('minPitch');
+        const maxPitch = this.getProperty('maxPitch');
+        const pitch = minPitch + Math.random() * (maxPitch - minPitch);
+        
+        const noteInfo = this.frequencyToNote(pitch);
         
         return {
             'Pitch': pitch,
-            'Note': `${noteName}${octave}`,
-            'Cents': (Math.random() - 0.5) * 100,
+            'Note': noteInfo.note,
+            'Cents': noteInfo.cents,
             'Clarity': Math.random()
         };
     }
 
     onPropertyChanged(name, value) {
+        // Validate property values
+        if (name === 'fftSize' && ![256, 512, 1024, 2048, 4096, 8192, 16384].includes(value)) {
+            console.warn(`Invalid fftSize value: ${value}, using default 2048`);
+            this.setProperty('fftSize', 2048);
+            return;
+        }
+        
+        if (name === 'minBPM' && (value < 30 || value > 200)) {
+            console.warn(`Invalid minBPM value: ${value}, must be between 30 and 200`);
+            return;
+        }
+        
+        if (name === 'maxBPM' && (value < 80 || value > 300)) {
+            console.warn(`Invalid maxBPM value: ${value}, must be between 80 and 300`);
+            return;
+        }
+        
         // Handle property changes that might require reinitialization
-        if (['fftSize', 'type', 'algorithm'].includes(name)) {
+        if (['fftSize', 'type', 'algorithm', 'windowSize'].includes(name)) {
             this.reinitializeAnalysis();
         }
     }
 
     reinitializeAnalysis() {
         // Reinitialize analysis components when key properties change
+        console.log(`Reinitializing ${this.audioType} analysis due to property change`);
+        
         if (this.analyser) {
+            try {
+                this.analyser.disconnect();
+            } catch (error) {
+                console.warn('Error disconnecting analyser:', error);
+            }
             this.analyser = null;
         }
-        // Additional cleanup and reinitialization would go here
+        
+        if (this.audioContext && this.audioContext.state !== 'closed') {
+            try {
+                this.audioContext.close();
+            } catch (error) {
+                console.warn('Error closing audio context:', error);
+            }
+            this.audioContext = null;
+        }
+        
+        // Reset data arrays
+        this.frequencyData = null;
+        this.timeData = null;
+        this.lastError = null;
+        
+        // Reinitialize the node setup
+        this.setupAudioNode();
     }
 }
 

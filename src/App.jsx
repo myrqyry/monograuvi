@@ -56,12 +56,11 @@ function App() {
         </div>
       </div>
 
-      <div className="timeline-section">
-        <Timeline audioUrl={audioUrl} />
-      </div>
-
-      <div className="music-player-container">
-        <MusicPlayer audioRef={audioRef} onAudioLoad={setAudioUrl} />
+      <div className="control-bar-container">
+        <div className="combined-controls">
+          <MusicPlayer audioRef={audioRef} onAudioLoad={setAudioUrl} />
+          <Timeline audioUrl={audioUrl} />
+        </div>
       </div>
     </div>
   );
