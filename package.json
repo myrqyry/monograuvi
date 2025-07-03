@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "concurrently \"npm run frontend\" \"npm run backend\" --names \"🎨,🐍\" --prefix-colors \"cyan,green\"",
     "frontend": "NODE_OPTIONS='--max-old-space-size=4096' vite",
-    "backend": "cd backend && source venv/bin/activate && python main.py",
+    "backend": "cd backend && venv/bin/python main.py",
     "backend:setup": "cd backend && chmod +x setup.sh && ./setup.sh",
     "backend:install": "cd backend && pip install -r requirements-fixed.txt",
     "dev:frontend-only": "NODE_OPTIONS='--max-old-space-size=4096' vite",
-    "dev:backend-only": "cd backend && source venv/bin/activate && python main.py",
+    "dev:backend-only": "cd backend && . venv/bin/activate && python main.py",
     "build": "vite build",
     "preview": "vite preview"
   },

@@ -3,6 +3,7 @@ Main FastAPI application for the music video creator backend.
 Provides API endpoints for audio processing, ML inference, and video generation.
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,36 +23,15 @@ from core.ml_models import MLModelManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Monograuvi Backend",
-    description="Backend API for music video creation with audio processing and ML capabilities",
-    version="1.0.0"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Initialize core components
 audio_processor = AudioProcessor()
 video_generator = VideoGenerator()
 ml_manager = MLModelManager()
 
-# Include API routes
-app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
-app.include_router(video.router, prefix="/api/video", tags=["video"])
-app.include_router(ml.router, prefix="/api/ml", tags=["machine-learning"])
-app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
-
-@app.on_startup
-async def startup_event():
-    """Initialize services on startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
     logger.info("Starting Monograuvi Backend...")
     
     # Create necessary directories
@@ -63,12 +43,35 @@ async def startup_event():
     await ml_manager.load_default_models()
     
     logger.info("Backend startup complete!")
-
-@app.on_shutdown
-async def shutdown_event():
-    """Cleanup on shutdown."""
+    
+    yield
+    
+    # Shutdown
     logger.info("Shutting down Monograuvi Backend...")
     await ml_manager.cleanup()
+
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title="Monograuvi Backend",
+    description="Backend API for music video creation with audio processing and ML capabilities",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routes
+app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
+app.include_router(video.router, prefix="/api/video", tags=["video"])
+app.include_router(ml.router, prefix="/api/ml", tags=["machine-learning"])
+app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 
 @app.get("/")
 async def root():

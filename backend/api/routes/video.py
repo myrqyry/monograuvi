@@ -174,8 +174,8 @@ async def add_audio_to_video(
 
 @router.post("/apply-effects")
 async def apply_video_effects(
-    video_file: UploadFile = File(...),
     effects: List[EffectConfig],
+    video_file: UploadFile = File(...),
     video_generator: VideoGenerator = Depends(get_video_generator)
 ):
     """Apply effects to a video."""
