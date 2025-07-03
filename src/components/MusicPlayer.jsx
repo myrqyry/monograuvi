@@ -4,7 +4,7 @@ import WaveSurfer from 'wavesurfer.js';
 import useStore from '../store';
 
 
-function MusicPlayer({ audioRef }) {
+function MusicPlayer({ audioRef, onAudioLoad }) {
   const waveformRef = useRef(null);
   const wavesurfer = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -65,6 +65,9 @@ function MusicPlayer({ audioRef }) {
       wavesurfer.current.load(url);
       setTrackTitle(file.name);
       setTrackArtist('');
+      if (onAudioLoad) {
+        onAudioLoad(url);
+      }
     }
   };
 

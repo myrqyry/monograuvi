@@ -133,6 +133,17 @@
   width: calc(100% - 0px);
 }
 
+.timeline-section {
+  @apply border-t;
+  height: 120px;
+  border-color: var(--border-color);
+  background-color: var(--bg-mantle);
+}
+
+.timeline-container {
+  @apply p-2 h-full;
+}
+
 .music-player-container {
   @apply border-t;
   height: 100px;

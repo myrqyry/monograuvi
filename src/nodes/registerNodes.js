@@ -3,6 +3,7 @@ import { createAudioNode } from './AudioNode.js';
 import { createVisualNode } from './VisualNode.js';
 import { createControlNode } from './ControlNode.js';
 import { createOutputNode } from './OutputNode.js';
+import { QuickConnection } from '../utils/QuickConnection';
 
 // Register all nodes
 export function registerAllNodes() {
@@ -538,6 +539,8 @@ export function registerAllNodes() {
   LiteGraph.registerNodeType("math/multiply", MathMultiply);
   LiteGraph.registerNodeType("logic/threshold", Threshold);
   
+  LiteGraph.registerNodeType('quick-connection', QuickConnection);
+
   console.log("All enhanced LiteGraph nodes registered successfully!");
 }
 
