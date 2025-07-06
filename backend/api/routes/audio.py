@@ -9,19 +9,78 @@ import logging
 import tempfile
 import os
 from pathlib import Path
+from functools import lru_cache
 
 from core.audio_processor import AudioProcessor
 from core.ml_models import MLModelManager
+from utils.file_validator import file_validator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Dependency injection
-def get_audio_processor() -> AudioProcessor:
-    return AudioProcessor()
+# Global instances (will be set by main.py)
+_audio_processor: Optional[AudioProcessor] = None
+_ml_manager: Optional[MLModelManager] = None
 
+def set_global_instances(audio_processor: AudioProcessor, ml_manager: MLModelManager):
+    """Set global instances from main.py startup."""
+    global _audio_processor, _ml_manager
+    _audio_processor = audio_processor
+    _ml_manager = ml_manager
+    logger.info("Global instances set for audio routes")
+
+# Dependency injection with caching
+@lru_cache(maxsize=1)
+def get_audio_processor() -> AudioProcessor:
+    """Get cached AudioProcessor instance."""
+    if _audio_processor is None:
+        # Fallback to creating new instance if not set by main.py
+        logger.info("Creating new AudioProcessor instance (fallback)")
+        return AudioProcessor()
+    logger.debug("Using pre-initialized AudioProcessor instance")
+    return _audio_processor
+
+@lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
-    return MLModelManager()
+    """Get cached MLModelManager instance."""
+    if _ml_manager is None:
+        # Fallback to creating new instance if not set by main.py
+        logger.info("Creating new MLModelManager instance (fallback)")
+        return MLModelManager()
+    logger.debug("Using pre-initialized MLModelManager instance")
+    return _ml_manager
+
+async def validate_audio_file(file: UploadFile) -> bytes:
+    """
+    Validate audio file and return file content.
+    
+    Args:
+        file: Uploaded file
+        
+    Returns:
+        File content as bytes
+        
+    Raises:
+        HTTPException: If file validation fails
+    """
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Validate file using robust validation
+        is_valid, error_message = file_validator.validate_audio_file(content, file.filename)
+        
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"File validation failed: {error_message}")
+        
+        logger.info(f"Audio file validation passed: {file.filename}")
+        return content
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating audio file {file.filename}: {e}")
+        raise HTTPException(status_code=400, detail=f"File validation error: {str(e)}")
 
 @router.post("/upload")
 async def upload_audio(
@@ -30,13 +89,11 @@ async def upload_audio(
 ):
     """Upload and process audio file."""
     try:
-        # Validate file type
-        if not file.filename.lower().endswith(('.mp3', '.wav', '.flac', '.ogg', '.m4a')):
-            raise HTTPException(status_code=400, detail="Unsupported audio format")
+        # Validate file using robust validation
+        content = await validate_audio_file(file)
         
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            content = await file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
@@ -61,6 +118,8 @@ async def upload_audio(
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
                 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error processing audio upload: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -74,9 +133,11 @@ async def analyze_audio(
 ):
     """Perform comprehensive audio analysis."""
     try:
+        # Validate file using robust validation
+        content = await validate_audio_file(file)
+        
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            content = await file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
@@ -134,6 +195,8 @@ async def analyze_audio(
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
                 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error analyzing audio: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -150,9 +213,11 @@ async def generate_spectrogram(
         if spec_type not in ["mel", "chroma", "stft"]:
             raise HTTPException(status_code=400, detail="Invalid spectrogram type")
         
+        # Validate file using robust validation
+        content = await validate_audio_file(file)
+        
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            content = await file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
@@ -176,6 +241,8 @@ async def generate_spectrogram(
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
                 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error generating spectrogram: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -188,9 +255,11 @@ async def extract_audio_features(
 ):
     """Extract specific audio features."""
     try:
+        # Validate file using robust validation
+        content = await validate_audio_file(file)
+        
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            content = await file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
@@ -240,6 +309,8 @@ async def extract_audio_features(
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
                 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error extracting audio features: {e}")
         raise HTTPException(status_code=500, detail=str(e))

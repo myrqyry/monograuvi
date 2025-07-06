@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
     # Initialize ML models
     await ml_manager.load_default_models()
     
+    # Set global instances in route modules
+    audio.set_global_instances(audio_processor, ml_manager)
+    video.set_global_instances(video_generator, ml_manager)
+    ml.set_global_instances(ml_manager)
+    
     logger.info("Backend startup complete!")
     
     yield

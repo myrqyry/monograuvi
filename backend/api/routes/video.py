@@ -10,12 +10,88 @@ import logging
 import tempfile
 import os
 from pathlib import Path
+from functools import lru_cache
 
 from core.video_generator import VideoGenerator
 from core.ml_models import MLModelManager
+from utils.file_validator import file_validator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Global instances (will be set by main.py)
+_video_generator: Optional[VideoGenerator] = None
+_ml_manager: Optional[MLModelManager] = None
+
+def set_global_instances(video_generator: VideoGenerator, ml_manager: MLModelManager):
+    """Set global instances from main.py startup."""
+    global _video_generator, _ml_manager
+    _video_generator = video_generator
+    _ml_manager = ml_manager
+
+async def validate_audio_file(file: UploadFile) -> bytes:
+    """
+    Validate audio file and return file content.
+    
+    Args:
+        file: Uploaded file
+        
+    Returns:
+        File content as bytes
+        
+    Raises:
+        HTTPException: If file validation fails
+    """
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Validate file using robust validation
+        is_valid, error_message = file_validator.validate_audio_file(content, file.filename)
+        
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Audio file validation failed: {error_message}")
+        
+        logger.info(f"Audio file validation passed: {file.filename}")
+        return content
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating audio file {file.filename}: {e}")
+        raise HTTPException(status_code=400, detail=f"Audio file validation error: {str(e)}")
+
+async def validate_video_file(file: UploadFile) -> bytes:
+    """
+    Validate video file and return file content.
+    
+    Args:
+        file: Uploaded file
+        
+    Returns:
+        File content as bytes
+        
+    Raises:
+        HTTPException: If file validation fails
+    """
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Validate file using robust validation
+        is_valid, error_message = file_validator.validate_video_file(content, file.filename)
+        
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Video file validation failed: {error_message}")
+        
+        logger.info(f"Video file validation passed: {file.filename}")
+        return content
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating video file {file.filename}: {e}")
+        raise HTTPException(status_code=400, detail=f"Video file validation error: {str(e)}")
 
 class VideoConfig(BaseModel):
     fps: int = 30
@@ -35,12 +111,22 @@ class EffectConfig(BaseModel):
     scale: Optional[float] = None
     factor: Optional[float] = None
 
-# Dependency injection
+# Dependency injection with caching
+@lru_cache(maxsize=1)
 def get_video_generator() -> VideoGenerator:
-    return VideoGenerator()
+    """Get cached VideoGenerator instance."""
+    if _video_generator is None:
+        # Fallback to creating new instance if not set by main.py
+        return VideoGenerator()
+    return _video_generator
 
+@lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
-    return MLModelManager()
+    """Get cached MLModelManager instance."""
+    if _ml_manager is None:
+        # Fallback to creating new instance if not set by main.py
+        return MLModelManager()
+    return _ml_manager
 
 class ReactiveVideoRequest(BaseModel):
     audio_features: Dict[str, Any]
@@ -76,9 +162,11 @@ async def create_spectrogram_video(
 ):
     """Create a spectrogram visualization video."""
     try:
+        # Validate audio file using robust validation
+        content = await validate_audio_file(audio_file)
+        
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.filename).suffix) as tmp_file:
-            content = await audio_file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
@@ -138,14 +226,16 @@ async def add_audio_to_video(
 ):
     """Combine video with audio track."""
     try:
+        # Validate files using robust validation
+        video_content = await validate_video_file(video_file)
+        audio_content = await validate_audio_file(audio_file)
+        
         # Save uploaded files temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.filename).suffix) as video_tmp:
-            video_content = await video_file.read()
             video_tmp.write(video_content)
             video_tmp_path = video_tmp.name
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.filename).suffix) as audio_tmp:
-            audio_content = await audio_file.read()
             audio_tmp.write(audio_content)
             audio_tmp_path = audio_tmp.name
         
@@ -180,9 +270,11 @@ async def apply_video_effects(
 ):
     """Apply effects to a video."""
     try:
+        # Validate video file using robust validation
+        content = await validate_video_file(video_file)
+        
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.filename).suffix) as tmp_file:
-            content = await video_file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         

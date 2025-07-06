@@ -5,14 +5,13 @@ import NodeGraph from './components/NodeGraph';
 import NodeLibrary from './components/NodeLibrary';
 import MusicPlayer from './components/MusicPlayer';
 import ThemeSelector from './components/ThemeSelector';
-import Timeline from './components/Timeline';
+import WaveformTimeline from './components/WaveformTimeline';
 import useStore from './store';
 import './index.css';
 
 function App() {
   const [libraryVisible, setLibraryVisible] = useState(true);
   const [theme, setTheme] = useState('catppuccin-mocha');
-  const [audioUrl, setAudioUrl] = useState(null);
   const audioRef = useRef(null);
   const setAudioContext = useStore(state => state.setAudioContext);
 
@@ -58,8 +57,10 @@ function App() {
 
       <div className="control-bar-container">
         <div className="combined-controls">
-          <MusicPlayer audioRef={audioRef} onAudioLoad={setAudioUrl} />
-          <Timeline audioUrl={audioUrl} />
+          <MusicPlayer 
+            audioRef={audioRef} 
+            onAudioLoad={() => {}} 
+          />
         </div>
       </div>
     </div>

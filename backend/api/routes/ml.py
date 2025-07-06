@@ -5,14 +5,23 @@ Machine Learning API routes.
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 import numpy as np
+from functools import lru_cache
 
 from core.ml_models import MLModelManager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Global instances (will be set by main.py)
+_ml_manager: Optional[MLModelManager] = None
+
+def set_global_instances(ml_manager: MLModelManager):
+    """Set global instances from main.py startup."""
+    global _ml_manager
+    _ml_manager = ml_manager
 
 class GenreClassificationRequest(BaseModel):
     mfcc_features: List[List[float]]
@@ -28,9 +37,14 @@ class VisualParametersRequest(BaseModel):
     audio_features: Dict[str, Any]
     mood_analysis: Dict[str, Any]
 
-# Dependency injection
+# Dependency injection with caching
+@lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
-    return MLModelManager()
+    """Get cached MLModelManager instance."""
+    if _ml_manager is None:
+        # Fallback to creating new instance if not set by main.py
+        return MLModelManager()
+    return _ml_manager
 
 @router.post("/classify-genre")
 async def classify_genre(

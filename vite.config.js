@@ -3,7 +3,15 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 3000 },
+  server: { 
+    port: 3000,
+    watch: {
+      ignored: [
+        '**/node_modules/**',
+        '**/venv/**'
+      ]
+    }
+  },
   optimizeDeps: {
     exclude: ['litegraph.js', 'wavesurfer.js']
   }
