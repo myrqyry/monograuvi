@@ -14,5 +14,13 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['litegraph.js', 'wavesurfer.js']
+  },
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
   }
 });

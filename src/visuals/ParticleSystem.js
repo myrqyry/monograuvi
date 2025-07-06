@@ -19,7 +19,7 @@ class ParticleSystem {
     createBuffer() {
         const buffer = this.gl.createBuffer();
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, this.particles, this.gl.STATIC_DRAW);
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.particles);
         return buffer;
     }
 
@@ -34,7 +34,7 @@ class ParticleSystem {
             this.particles[i * 4 + 1] += (Math.random() - 0.5) * audioFeatures.frequency; // y
         }
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, this.particles, this.gl.STATIC_DRAW);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, this.particles, this.gl.STREAM_DRAW);
     }
 
     resetParticle(index) {
@@ -47,10 +47,12 @@ class ParticleSystem {
     render(shaderProgram) {
         this.gl.useProgram(shaderProgram);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
-        const positionLocation = this.gl.getAttribLocation(shaderProgram, "a_position");
-        this.gl.enableVertexAttribArray(positionLocation);
-        this.gl.vertexAttribPointer(positionLocation, 4, this.gl.FLOAT, false, 0, 0);
+        const particleDataLocation = this.gl.getAttribLocation(shaderProgram, "a_particleData");
+        this.gl.enableVertexAttribArray(particleDataLocation);
+        this.gl.vertexAttribPointer(particleDataLocation, 4, this.gl.FLOAT, false, 0, 0);
         this.gl.drawArrays(this.gl.POINTS, 0, this.numParticles);
+        this.gl.disableVertexAttribArray(particleDataLocation);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
     }
 }
 

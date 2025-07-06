@@ -15,20 +15,26 @@ function App() {
   const audioRef = useRef(null);
   const setAudioContext = useStore(state => state.setAudioContext);
 
-  useEffect(() => {
-    // Initialize audio context when app loads
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    setAudioContext(audioContext);
-    
-    return () => {
-      if (audioContext) audioContext.close();
-    };
-  }, []);
+  const [audioContext, setLocalAudioContext] = useState(null);
+
+  const initializeAudioContext = () => {
+    if (!audioContext) {
+      const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+      setLocalAudioContext(newAudioContext);
+      setAudioContext(newAudioContext);
+    }
+  };
 
   return (
     <div className={`app-container theme-${theme}`}>
       <header className="app-header">
         <div className="flex items-center">
+          <button 
+            onClick={initializeAudioContext}
+            className="initialize-audio-btn"
+          >
+            Initialize Audio
+          </button>
           <button 
             onClick={() => setLibraryVisible(!libraryVisible)}
             className="toggle-library-btn"

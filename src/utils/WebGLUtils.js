@@ -3,11 +3,12 @@ export function createWebGLContext(canvas) {
     if (!gl) {
         console.error('Unable to initialize WebGL. Your browser may not support it.');
         return null;
-    }
+}
     return gl;
 }
 
 export function initWebGL(canvas) {
+    // Placeholder for future initialization logic
     return createWebGLContext(canvas);
 }
 
@@ -20,8 +21,8 @@ export function compileShader(gl, source, type) {
     if (success) {
         return shader;
     }
-
     console.error('Shader compilation failed: ' + gl.getShaderInfoLog(shader));
+    return null;
     gl.deleteShader(shader);
 }
 
@@ -33,25 +34,28 @@ export function linkProgram(gl, vertexShader, fragmentShader) {
 
     const success = gl.getProgramParameter(program, gl.LINK_STATUS);
     if (success) {
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
         return program;
     }
 
     console.error('Program linking failed: ' + gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
+    return null;
 }
 
-export function renderVisuals(gl, audioData, visualElements) {
+export function renderVisuals(gl, audioData) {
     // Basic render function placeholder
-    gl.clearColor(0.1, 0.1, 0.1, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    let clearColor = [0.1, 0.1, 0.1, 1.0];
     
-    // TODO: Implement actual rendering based on audioData and visualElements
+    // TODO: Implement actual rendering based on audioData
     if (audioData) {
         // Example: change clear color based on audio amplitude
-        const amplitude = audioData.reduce ? audioData.reduce((a, b) => a + b, 0) / audioData.length : 0;
-        gl.clearColor(amplitude * 0.5, 0.1, amplitude * 0.3, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        const amplitude = Array.isArray(audioData) ? audioData.reduce((a, b) => a + b, 0) / audioData.length : 0;
+        clearColor = [amplitude * 0.5, 0.1, amplitude * 0.3, 1.0];
     }
+    gl.clearColor(...clearColor);
+    gl.clear(gl.COLOR_BUFFER_BIT);
 }
 
 export function resizeCanvasToDisplaySize(canvas) {

@@ -38,9 +38,10 @@ export class QuickConnection {
       });
     }
 
-    this.isComfyUI = this.canvas.connecting_links !== undefined ? true : false;
+    this.isComfyUI = this.canvas.connecting_links !== undefined;
 
     this.addOnCanvas('onDrawOverlay', (ctx) => this.onDrawOverlay(ctx));
+    this.addOnCanvas('processMouseDown', (e) => this.onMouseDown(e));
     this.addOnCanvas('processMouseUp', (e) => this.onMouseUp(e));
   }
 
@@ -110,6 +111,7 @@ export class QuickConnection {
     }
 
     this.insideConnection = null;
+    this.acceptingNodes = null; // Cache for accepting nodes
 
     const connectionInfo = this.getCurrentConnection();
 
@@ -132,12 +134,10 @@ export class QuickConnection {
 
       const pos = node.getConnectionPos(isInput, connectionSlot, slotPos);
 
+      // Use precomputed accepting nodes
       if (!this.acceptingNodes) {
-        this.acceptingNodes = this.findAcceptingNodes(
-          connecting,
-          node,
-          !isInput,
-        );
+        console.warn('Accepting nodes cache is empty. Ensure onMouseDown is triggered.');
+        return;
       }
 
       let scale = 1 / this.canvas.ds.scale;
@@ -145,14 +145,17 @@ export class QuickConnection {
         scale = 1.0;
       }
 
+      const SLOT_HEIGHT_MULTIPLIER_X = 6;
+      const SLOT_HEIGHT_MULTIPLIER_Y = 8;
       const linkCloseArea = [
-        pos[0] - (LiteGraph.NODE_SLOT_HEIGHT * 6 * scale),
+        pos[0] - (LiteGraph.NODE_SLOT_HEIGHT * SLOT_HEIGHT_MULTIPLIER_X * scale),
         pos[1] - LiteGraph.NODE_SLOT_HEIGHT,
-        LiteGraph.NODE_SLOT_HEIGHT * 8 * scale,
+        LiteGraph.NODE_SLOT_HEIGHT * SLOT_HEIGHT_MULTIPLIER_Y * scale,
         LiteGraph.NODE_SLOT_HEIGHT * (this.acceptingNodes.length + 1) * scale,
       ];
       if (!isInput) {
-        linkCloseArea[0] = pos[0] - ((LiteGraph.NODE_SLOT_HEIGHT * 2) * scale);
+        const SLOT_HEIGHT_MULTIPLIER_X_REDUCED = 2;
+        linkCloseArea[0] = pos[0] - ((LiteGraph.NODE_SLOT_HEIGHT * SLOT_HEIGHT_MULTIPLIER_X_REDUCED) * scale);
       }
 
       const isInsideClosePosition = LiteGraph.isInsideRectangle(
@@ -165,33 +168,7 @@ export class QuickConnection {
       );
 
       if (isInsideClosePosition) {
-        this.highlightedNodes = [];
-        this.acceptingNodes.forEach((acceptingNode) => {
-          // Highlight compatible nodes
-          if (!this.originalNodeColors.has(acceptingNode.node.id)) {
-            this.originalNodeColors.set(acceptingNode.node.id, acceptingNode.node.bgcolor);
-          }
-          acceptingNode.node.bgcolor = '#6a6'; // Highlight color
-          this.highlightedNodes.push(acceptingNode.node);
-
-          const destPos = new Float32Array(2);
-          acceptingNode.node.getConnectionPos(
-            !isInput,
-            acceptingNode.connection_slot_index,
-            destPos,
-          );
-          ctx.beginPath();
-          ctx.moveTo(pos[0], pos[1]);
-          
-          // Draw right-angled connection with a curve
-          const halfWayX = pos[0] + (destPos[0] - pos[0]) / 2;
-          ctx.bezierCurveTo(halfWayX, pos[1], halfWayX, destPos[1], destPos[0], destPos[1]);
-
-          ctx.strokeStyle = '#7f7'; // Highlighted connection color
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          ctx.closePath();
-        });
+        this.updateHighlightedNodes();
       } else {
         this.clearHighlights();
       }
@@ -214,6 +191,28 @@ export class QuickConnection {
     return null;
   }
 
+  updateHighlightedNodes() {
+    if (!this.acceptingNodes) {
+      return;
+    }
+
+    const newHighlightedNodes = [];
+    this.acceptingNodes.forEach((acceptingNode) => {
+      if (!this.originalNodeColors.has(acceptingNode.node.id)) {
+        this.originalNodeColors.set(acceptingNode.node.id, acceptingNode.node.bgcolor);
+      }
+      acceptingNode.node.bgcolor = '#6a6'; // Highlight color
+      newHighlightedNodes.push(acceptingNode.node);
+    });
+
+    // Clear previous highlights
+    this.clearHighlights();
+
+    // Update highlighted nodes
+    this.highlightedNodes = newHighlightedNodes;
+    this.canvas.draw(true, true); // Mark canvas for redraw
+  }
+
   clearHighlights() {
     if (this.highlightedNodes.length) {
       this.highlightedNodes.forEach(node => {
@@ -223,7 +222,39 @@ export class QuickConnection {
         }
       });
       this.highlightedNodes = [];
-      this.canvas.draw(true, true); // Redraw canvas
+      if (this.canvas.ds && this.canvas.ds.redrawArea) {
+        // Redraw only affected areas if supported
+        this.highlightedNodes.forEach(node => {
+          const nodeArea = {
+            x: node.pos[0],
+            y: node.pos[1],
+            width: node.size[0],
+            height: node.size[1],
+          };
+          this.canvas.ds.redrawArea(nodeArea);
+        });
+      } else {
+        this.canvas.draw(true, true); // Fallback to full redraw
+      }
+    }
+  }
+
+  onMouseDown(e) {
+    if (!this.enabled || !this.canvas.connecting_node) {
+      return;
+    }
+
+    const connectionInfo = this.getCurrentConnection();
+    if (connectionInfo) {
+      const { node, input, output } = connectionInfo;
+      if (input || output) {
+        const isInput = !!input;
+        this.acceptingNodes = this.findAcceptingNodes(
+          isInput ? input : output,
+          node,
+          !isInput,
+        );
+      }
     }
   }
 
@@ -253,7 +284,8 @@ export class QuickConnection {
           }
         });
 
-        if (closestNode && closestDist < 50) { // 50px threshold for snapping
+        const SNAPPING_THRESHOLD_PX = 50;
+        if (closestNode && closestDist < SNAPPING_THRESHOLD_PX) { // Snapping threshold
           const fromNode = connectionInfo.node;
           const fromSlot = connectionInfo.slot;
           const toNode = closestNode.node;

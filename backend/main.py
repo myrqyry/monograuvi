@@ -35,9 +35,9 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Monograuvi Backend...")
     
     # Create necessary directories
-    os.makedirs("temp/audio", exist_ok=True)
-    os.makedirs("temp/video", exist_ok=True)
-    os.makedirs("temp/ml", exist_ok=True)
+    os.makedirs(settings.TEMP_AUDIO_DIR, exist_ok=True)
+    os.makedirs(settings.TEMP_VIDEO_DIR, exist_ok=True)
+    os.makedirs(settings.TEMP_ML_DIR, exist_ok=True)
     
     # Initialize ML models
     await ml_manager.load_default_models()

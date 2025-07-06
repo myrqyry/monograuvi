@@ -33,6 +33,8 @@
   --ctp-mocha-base: #1e1e2e;
   --ctp-mocha-mantle: #181825;
   --ctp-mocha-crust: #11111b;
+  --text-base: #ffffff;
+  --text-subdued: #a6adc8;
 }
 
 .theme-catppuccin-mocha {
@@ -132,7 +134,7 @@
 }
 
 .graph-area.full-width {
-  width: calc(100% - 0px);
+  width: 100%;
 }
 
 .control-bar-container {
@@ -218,7 +220,6 @@
     rgba(137, 180, 250, 0.05) 50%,
     rgba(249, 226, 175, 0.1) 100%
   );
-  border-radius: 0;
   pointer-events: none;
 }
 
@@ -314,8 +315,6 @@
 .litegraph {
   @apply flex-1;
   background-color: var(--bg-base);
-  width: 100%;
-  height: 100%;
   display: block;
   position: relative;
 }
@@ -328,18 +327,18 @@
 
 /* LiteGraph dark theme overrides */
 .litegraph .lgraphnode {
-  background-color: var(--node-bg) !important;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-primary) !important;
+  background-color: var(--node-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .litegraph .lgraphnode .title {
-  background-color: var(--node-header) !important;
-  color: var(--text-primary) !important;
+  background-color: var(--node-header);
+  color: var(--text-primary);
 }
 
 .litegraph .lgraphnode .slot {
-  color: var(--text-secondary) !important;
+  color: var(--text-secondary);
 }
 
 /* Music Player Styles */

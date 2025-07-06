@@ -22,7 +22,7 @@ class BaseNode {
         this.processCount = 0;
         
         // Backend integration
-        this.apiEndpoint = null;
+        this.apiEndpoint = options.apiEndpoint || 'http://localhost:8000';
         this.websocketConnected = false;
     }
 
@@ -79,12 +79,34 @@ class BaseNode {
             const prop = this.properties[name];
             
             // Validate value based on type and constraints
-            if (prop.min !== undefined && value < prop.min) value = prop.min;
-            if (prop.max !== undefined && value > prop.max) value = prop.max;
-            
-            this.properties[name].value = value;
-            this.onPropertyChanged(name, value);
-            return true;
+if (prop.min !== undefined && value < prop.min) value = prop.min;
+if (prop.max !== undefined && value > prop.max) value = prop.max;
+
+// Validate value against type
+if (prop.type === 'number' && typeof value !== 'number') {
+    console.error(`Invalid type for property '${name}'. Expected 'number', got '${typeof value}'.`);
+    return false;
+}
+if (prop.type === 'string' && typeof value !== 'string') {
+    console.error(`Invalid type for property '${name}'. Expected 'string', got '${typeof value}'.`);
+    return false;
+}
+if (prop.type === 'boolean' && typeof value !== 'boolean') {
+    console.error(`Invalid type for property '${name}'. Expected 'boolean', got '${typeof value}'.`);
+    return false;
+}
+if (prop.type === 'object' && typeof value !== 'object') {
+    console.error(`Invalid type for property '${name}'. Expected 'object', got '${typeof value}'.`);
+    return false;
+}
+if (prop.options && !prop.options.includes(value)) {
+    console.error(`Invalid value for property '${name}'. Allowed values are: ${prop.options.join(', ')}.`);
+    return false;
+}
+
+this.properties[name].value = value;
+this.onPropertyChanged(name, value);
+return true;
         }
         return false;
     }
@@ -138,7 +160,7 @@ class BaseNode {
     // Backend integration methods
     async callBackendAPI(endpoint, data = {}, method = 'POST') {
         try {
-            const response = await fetch(`http://localhost:8000${endpoint}`, {
+            const response = await fetch(`${this.apiEndpoint}${endpoint}`, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
@@ -168,9 +190,14 @@ class BaseNode {
                 this.onWebSocketConnected(ws);
             };
             
-            ws.onmessage = (event) => {
-                this.onWebSocketMessage(JSON.parse(event.data));
-            };
+ws.onmessage = (event) => {
+    try {
+        const data = JSON.parse(event.data);
+        this.onWebSocketMessage(data);
+    } catch (error) {
+        console.error(`Failed to parse WebSocket message for node ${this.id}:`, error);
+    }
+};
             
             ws.onclose = () => {
                 this.websocketConnected = false;
@@ -211,15 +238,45 @@ class BaseNode {
             if (inputs[input.name] !== undefined) {
                 const value = inputs[input.name];
                 
-                if (input.type === 'number') {
-                    if (isNaN(value)) errors.push(`Input '${input.name}' must be a number`);
-                    if (input.min !== undefined && value < input.min) {
-                        errors.push(`Input '${input.name}' must be >= ${input.min}`);
-                    }
-                    if (input.max !== undefined && value > input.max) {
-                        errors.push(`Input '${input.name}' must be <= ${input.max}`);
-                    }
-                }
+if (input.type === 'number') {
+    if (isNaN(value)) errors.push(`Input '${input.name}' must be a number`);
+    if (input.min !== undefined && value < input.min) {
+        errors.push(`Input '${input.name}' must be >= ${input.min}`);
+    }
+    if (input.max !== undefined && value > input.max) {
+        errors.push(`Input '${input.name}' must be <= ${input.max}`);
+    }
+} else if (input.type === 'string') {
+    if (typeof value !== 'string') {
+        errors.push(`Input '${input.name}' must be a string`);
+    }
+    if (input.pattern && !new RegExp(input.pattern).test(value)) {
+        errors.push(`Input '${input.name}' must match the pattern: ${input.pattern}`);
+    }
+} else if (input.type === 'boolean') {
+    if (typeof value !== 'boolean') {
+        errors.push(`Input '${input.name}' must be a boolean`);
+    }
+} else if (input.type === 'object') {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        errors.push(`Input '${input.name}' must be an object`);
+    }
+} else if (input.type === 'array') {
+    if (!Array.isArray(value)) {
+        errors.push(`Input '${input.name}' must be an array`);
+    }
+    if (input.itemType) {
+        value.forEach((item, index) => {
+            if (typeof item !== input.itemType) {
+                errors.push(`Item at index ${index} in input '${input.name}' must be of type '${input.itemType}'`);
+            }
+        });
+    }
+} else if (input.options) {
+    if (!input.options.includes(value)) {
+        errors.push(`Input '${input.name}' must be one of: ${input.options.join(', ')}`);
+    }
+}
             }
         });
         
@@ -269,12 +326,12 @@ class BaseNode {
     }
 
     deserialize(data) {
-        this.id = data.id || this.id;
-        this.name = data.name || this.name;
+        this.id = data.id !== undefined ? data.id : this.id;
+        this.name = data.name !== undefined ? data.name : this.name;
         this.enabled = data.enabled !== undefined ? data.enabled : this.enabled;
         this.bypass = data.bypass !== undefined ? data.bypass : this.bypass;
-        this.size = data.size || this.size;
-        this.color = data.color || this.color;
+        this.size = data.size !== undefined ? data.size : this.size;
+        this.color = data.color !== undefined ? data.color : this.color;
         
         if (data.properties) {
             Object.entries(data.properties).forEach(([key, value]) => {

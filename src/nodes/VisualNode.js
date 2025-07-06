@@ -1,7 +1,7 @@
 import BaseNode from './BaseNode.js';
 
 class VisualNode extends BaseNode {
-    constructor(type = 'particle-system', options = {}) {
+    constructor(type = VisualTypes.PARTICLE_SYSTEM, options = {}) {
         super(`Visual ${type}`, { 
             color: '#9B59B6', 
             size: [240, 200],
@@ -19,37 +19,11 @@ class VisualNode extends BaseNode {
     }
 
     setupVisualNode() {
-        switch (this.visualType) {
-            case 'particle-system':
-                this.setupParticleSystem();
-                break;
-            case 'waveform':
-                this.setupWaveform();
-                break;
-            case 'spectrum-visualizer':
-                this.setupSpectrumVisualizer();
-                break;
-            case 'shader-effect':
-                this.setupShaderEffect();
-                break;
-            case 'geometry-renderer':
-                this.setupGeometryRenderer();
-                break;
-            case 'text-animator':
-                this.setupTextAnimator();
-                break;
-            case 'video-effect':
-                this.setupVideoEffect();
-                break;
-            case 'kaleidoscope':
-                this.setupKaleidoscope();
-                break;
-            case 'mandala':
-                this.setupMandala();
-                break;
-            case 'flow-field':
-                this.setupFlowField();
-                break;
+        const setupFunction = visualRegistry[this.visualType]?.setup;
+        if (setupFunction) {
+            setupFunction.call(this);
+        } else {
+            console.warn(`No setup function found for visual type: ${this.visualType}`);
         }
     }
 
@@ -502,29 +476,12 @@ class VisualNode extends BaseNode {
     }
 
     async onProcess(inputs) {
-        switch (this.visualType) {
-            case 'particle-system':
-                return this.processParticleSystem(inputs);
-            case 'waveform':
-                return this.processWaveform(inputs);
-            case 'spectrum-visualizer':
-                return this.processSpectrumVisualizer(inputs);
-            case 'shader-effect':
-                return this.processShaderEffect(inputs);
-            case 'geometry-renderer':
-                return this.processGeometryRenderer(inputs);
-            case 'text-animator':
-                return this.processTextAnimator(inputs);
-            case 'video-effect':
-                return this.processVideoEffect(inputs);
-            case 'kaleidoscope':
-                return this.processKaleidoscope(inputs);
-            case 'mandala':
-                return this.processMandala(inputs);
-            case 'flow-field':
-                return this.processFlowField(inputs);
-            default:
-                return this.getErrorOutput();
+        const processFunction = visualRegistry[this.visualType]?.process;
+        if (processFunction) {
+            return processFunction.call(this, inputs);
+        } else {
+            console.warn(`No process function found for visual type: ${this.visualType}`);
+            return this.getErrorOutput();
         }
     }
 
@@ -615,6 +572,7 @@ class VisualNode extends BaseNode {
                     Visual: result
                 };
             } catch (error) {
+                console.error(`Error in backend shader effect processing: ${error.message}`, error);
                 // Fallback to frontend processing
                 return this.processShaderEffectFrontend(inputs);
             }
@@ -659,6 +617,7 @@ class VisualNode extends BaseNode {
                     'Video Output': result
                 };
             } catch (error) {
+                console.error(`Error in backend video effect processing: ${error.message}`, error);
                 // Fallback to passthrough
                 return {
                     'Video Output': videoInput
@@ -780,6 +739,62 @@ class VisualNode extends BaseNode {
         }
     }
 }
+
+export const VisualTypes = {
+    PARTICLE_SYSTEM: 'particle-system',
+    WAVEFORM: 'waveform',
+    SPECTRUM_VISUALIZER: 'spectrum-visualizer',
+    SHADER_EFFECT: 'shader-effect',
+    GEOMETRY_RENDERER: 'geometry-renderer',
+    TEXT_ANIMATOR: 'text-animator',
+    VIDEO_EFFECT: 'video-effect',
+    KALEIDOSCOPE: 'kaleidoscope',
+    MANDALA: 'mandala',
+    FLOW_FIELD: 'flow-field',
+};
+
+const visualRegistry = {
+    [VisualTypes.PARTICLE_SYSTEM]: {
+        setup: VisualNode.prototype.setupParticleSystem,
+        process: VisualNode.prototype.processParticleSystem,
+    },
+    [VisualTypes.WAVEFORM]: {
+        setup: VisualNode.prototype.setupWaveform,
+        process: VisualNode.prototype.processWaveform,
+    },
+    [VisualTypes.SPECTRUM_VISUALIZER]: {
+        setup: VisualNode.prototype.setupSpectrumVisualizer,
+        process: VisualNode.prototype.processSpectrumVisualizer,
+    },
+    [VisualTypes.SHADER_EFFECT]: {
+        setup: VisualNode.prototype.setupShaderEffect,
+        process: VisualNode.prototype.processShaderEffect,
+    },
+    [VisualTypes.GEOMETRY_RENDERER]: {
+        setup: VisualNode.prototype.setupGeometryRenderer,
+        process: VisualNode.prototype.processGeometryRenderer,
+    },
+    [VisualTypes.TEXT_ANIMATOR]: {
+        setup: VisualNode.prototype.setupTextAnimator,
+        process: VisualNode.prototype.processTextAnimator,
+    },
+    [VisualTypes.VIDEO_EFFECT]: {
+        setup: VisualNode.prototype.setupVideoEffect,
+        process: VisualNode.prototype.processVideoEffect,
+    },
+    [VisualTypes.KALEIDOSCOPE]: {
+        setup: VisualNode.prototype.setupKaleidoscope,
+        process: VisualNode.prototype.processKaleidoscope,
+    },
+    [VisualTypes.MANDALA]: {
+        setup: VisualNode.prototype.setupMandala,
+        process: VisualNode.prototype.processMandala,
+    },
+    [VisualTypes.FLOW_FIELD]: {
+        setup: VisualNode.prototype.setupFlowField,
+        process: VisualNode.prototype.processFlowField,
+    },
+};
 
 // Factory function for creating different visual node types
 export function createVisualNode(type, options = {}) {

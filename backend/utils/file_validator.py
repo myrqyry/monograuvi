@@ -65,6 +65,24 @@ IMAGE_SIGNATURES = {
 
 class FileValidator:
     """Robust file validation using multiple methods."""
+
+    def validate_audio_file_from_path(self, file_path: str) -> Tuple[bool, str]:
+        """
+        Validate audio file using file path.
+
+        Args:
+            file_path: Path to the audio file.
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        try:
+            with open(file_path, "rb") as f:
+                file_content = f.read()  # Read the file in chunks if needed
+                return self.validate_audio_file(file_content, Path(file_path).name)
+        except Exception as e:
+            logger.error(f"Error validating audio file {file_path}: {e}")
+            return False, f"Validation error: {str(e)}"
     
     def __init__(self):
         # Initialize mimetypes
@@ -300,4 +318,4 @@ class FileValidator:
         return True
 
 # Global instance for reuse
-file_validator = FileValidator() 
+file_validator = FileValidator()

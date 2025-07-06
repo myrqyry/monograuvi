@@ -1,9 +1,10 @@
+const sharedAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+
 export function loadAudioFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            audioContext.decodeAudioData(event.target.result, (buffer) => {
+            sharedAudioContext.decodeAudioData(event.target.result, (buffer) => {
                 resolve(buffer);
             }, (error) => {
                 reject(error);
@@ -16,9 +17,10 @@ export function loadAudioFile(file) {
     });
 }
 
-export function getAudioContext() {
-    return new (window.AudioContext || window.webkitAudioContext)();
+export function getSharedAudioContext() {
+    return sharedAudioContext;
 }
+
 
 export function createGainNode(audioContext) {
     return audioContext.createGain();
@@ -36,14 +38,20 @@ export function createAnalyserNode(audioContext) {
     return audioContext.createAnalyser();
 }
 
-export function getFrequencyData(analyserNode) {
-    const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+export function getFrequencyData(analyserNode, dataArray) {
     analyserNode.getByteFrequencyData(dataArray);
     return dataArray;
 }
 
-export function getTimeDomainData(analyserNode) {
-    const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+export function createFrequencyDataArray(analyserNode) {
+    return new Uint8Array(analyserNode.frequencyBinCount);
+}
+
+export function getTimeDomainData(analyserNode, dataArray) {
     analyserNode.getByteTimeDomainData(dataArray);
     return dataArray;
+}
+
+export function createTimeDomainDataArray(analyserNode) {
+    return new Uint8Array(analyserNode.fftSize);
 }

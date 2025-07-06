@@ -35,7 +35,8 @@ class AudioProcessor:
     async def load_audio(self, file_path: str) -> Tuple[np.ndarray, int]:
         """Load audio file and return audio data and sample rate."""
         try:
-            audio_data, sr = librosa.load(file_path, sr=self.sample_rate)
+            loop = asyncio.get_event_loop()
+            audio_data, sr = await loop.run_in_executor(None, librosa.load, file_path, self.sample_rate)
             logger.info(f"Loaded audio: {len(audio_data)} samples at {sr} Hz")
             return audio_data, sr
         except Exception as e:
@@ -48,41 +49,26 @@ class AudioProcessor:
         
         try:
             # Spectral features
-            spectral_centroids = librosa.feature.spectral_centroid(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )[0]
-            spectral_rolloff = librosa.feature.spectral_rolloff(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )[0]
-            spectral_bandwidth = librosa.feature.spectral_bandwidth(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )[0]
-            zero_crossing_rate = librosa.feature.zero_crossing_rate(
-                audio_data, hop_length=self.hop_length
-            )[0]
+            loop = asyncio.get_event_loop()
+            spectral_centroids = await loop.run_in_executor(None, librosa.feature.spectral_centroid, audio_data, self.sample_rate, self.hop_length)[0]
+            spectral_rolloff = await loop.run_in_executor(None, librosa.feature.spectral_rolloff, audio_data, self.sample_rate, self.hop_length)[0]
+            spectral_bandwidth = await loop.run_in_executor(None, librosa.feature.spectral_bandwidth, audio_data, self.sample_rate, self.hop_length)[0]
+            zero_crossing_rate = await loop.run_in_executor(None, librosa.feature.zero_crossing_rate, audio_data, self.hop_length)[0]
             
             # MFCC features
-            mfccs = librosa.feature.mfcc(
-                y=audio_data, sr=self.sample_rate, n_mfcc=13, hop_length=self.hop_length
-            )
+            mfccs = await loop.run_in_executor(None, librosa.feature.mfcc, audio_data, self.sample_rate, 13, self.hop_length)
             
             # Chroma features
-            chroma = librosa.feature.chroma_stft(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
+            chroma = await loop.run_in_executor(None, librosa.feature.chroma_stft, audio_data, self.sample_rate, self.hop_length)
             
             # Tempo and beat tracking
-            tempo, beats = librosa.beat.beat_track(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
+            tempo, beats = await loop.run_in_executor(None, librosa.beat.beat_track, audio_data, self.sample_rate, self.hop_length)
             
             # Onset detection
-            onsets = librosa.onset.onset_detect(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
+            onsets = await loop.run_in_executor(None, librosa.onset.onset_detect, audio_data, self.sample_rate, self.hop_length)
             
             # Harmonic and percussive separation
-            harmonic, percussive = librosa.effects.hpss(audio_data)
+            harmonic, percussive = await loop.run_in_executor(None, librosa.effects.hpss, audio_data)
             
             features = {
                 'spectral_centroid': spectral_centroids.tolist(),
@@ -111,6 +97,16 @@ class AudioProcessor:
                                  spec_type: str = 'mel') -> str:
         """Generate spectrogram visualization as base64 encoded image."""
         try:
+            loop = asyncio.get_event_loop()
+            image_base64 = await loop.run_in_executor(None, self._generate_spectrogram_sync, audio_data, spec_type, None)
+            return image_base64
+        except Exception as e:
+            logger.error(f"Error generating spectrogram: {e}")
+            raise
+
+    def _generate_spectrogram_sync(self, audio_data: np.ndarray, spec_type: str, fmax: Optional[int] = None) -> str:
+        """Synchronous helper for generating spectrogram."""
+        try:
             plt.figure(figsize=(12, 6))
             
             if spec_type == 'mel':
@@ -121,7 +117,7 @@ class AudioProcessor:
                 mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
                 librosa.display.specshow(
                     mel_spec_db, sr=self.sample_rate, hop_length=self.hop_length,
-                    x_axis='time', y_axis='mel', fmax=8000
+                    x_axis='time', y_axis='mel', fmax=fmax if fmax else 8000
                 )
                 plt.colorbar(format='%+2.0f dB')
                 plt.title('Mel Spectrogram')
@@ -159,7 +155,6 @@ class AudioProcessor:
             plt.close()
             
             return f"data:image/png;base64,{image_base64}"
-            
         except Exception as e:
             logger.error(f"Error generating spectrogram: {e}")
             raise
@@ -216,12 +211,11 @@ class AudioProcessor:
                 'confidence': float(confidence),
                 'chroma_profile': chroma_mean.tolist()
             }
-            
         except Exception as e:
             logger.error(f"Error detecting key and scale: {e}")
             raise
     
-    async def segment_audio(self, audio_data: np.ndarray) -> Dict[str, Any]:
+    async def segment_audio(self, audio_data: np.ndarray, num_segments: Optional[int] = None) -> Dict[str, Any]:
         """Segment audio into structural parts (verse, chorus, etc.)."""
         try:
             # Use recurrence matrix for structural segmentation
@@ -236,7 +230,7 @@ class AudioProcessor:
             
             # Detect boundaries
             boundaries = librosa.segment.agglomerative(
-                R, k=8  # Number of segments
+                R, k=num_segments if num_segments else 8  # Configurable number of segments
             )
             
             # Convert frame indices to time
@@ -263,7 +257,6 @@ class AudioProcessor:
                 'num_segments': len(segments),
                 'total_duration': len(audio_data) / self.sample_rate
             }
-            
         except Exception as e:
             logger.error(f"Error segmenting audio: {e}")
             raise
@@ -306,7 +299,6 @@ class AudioProcessor:
                 'tempogram': tempogram.tolist(),
                 'rhythm_strength': float(np.std(tempogram))
             }
-            
         except Exception as e:
             logger.error(f"Error extracting rhythm features: {e}")
             raise

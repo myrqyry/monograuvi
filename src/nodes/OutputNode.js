@@ -358,15 +358,21 @@ class OutputNode extends BaseNode {
         const audio = inputs.Audio;
         const trigger = inputs.Trigger;
         
-        if (trigger && !this.recording) {
-            this.startVideoRecording(visual, audio);
-        } else if (!trigger && this.recording) {
-            this.stopVideoRecording();
-        }
+const triggerEdge = trigger && !this.previousTriggerState;
+const releaseEdge = !trigger && this.previousTriggerState;
+
+if (triggerEdge && !this.recording && !this.getProperty('useBackend')) {
+    this.startVideoRecording(visual, audio);
+} else if (releaseEdge && this.recording && !this.getProperty('useBackend')) {
+    this.stopVideoRecording();
+}
+
+this.previousTriggerState = trigger;
         
         if (this.getProperty('useBackend') && visual) {
             try {
-                const result = await this.callBackendAPI('/api/video/render', {
+                const VIDEO_RENDER_API = '/api/video/render';
+const result = await this.callBackendAPI(VIDEO_RENDER_API, {
                     visual_data: visual,
                     audio_data: audio,
                     resolution: this.getProperty('resolution'),
@@ -408,7 +414,8 @@ class OutputNode extends BaseNode {
         
         if (trigger && !this.recording && audio) {
             try {
-                const result = await this.callBackendAPI('/api/audio/render', {
+                const AUDIO_RENDER_API = '/api/audio/render';
+const result = await this.callBackendAPI(AUDIO_RENDER_API, {
                     audio_data: audio,
                     format: this.getProperty('format'),
                     sample_rate: this.getProperty('sampleRate'),
@@ -448,7 +455,8 @@ class OutputNode extends BaseNode {
         
         if (visual) {
             try {
-                const result = await this.callBackendAPI('/api/stream/output', {
+                const STREAM_OUTPUT_API = '/api/stream/output';
+const result = await this.callBackendAPI(STREAM_OUTPUT_API, {
                     visual_data: visual,
                     audio_data: audio,
                     platform: this.getProperty('platform'),
@@ -487,12 +495,14 @@ class OutputNode extends BaseNode {
     async processFileExport(inputs) {
         const data = inputs.Data;
         const trigger = inputs.Trigger;
-        
-        if ((trigger || this.getProperty('autoExport')) && data) {
+
+        if ((trigger || (this.getProperty('autoExport') && this.shouldDebounceExport() && this.isDataChanged(data))) && data) {
             try {
                 const filename = this.generateFilename();
+                this.lastExportTime = Date.now();
+this.previousDataHash = this.hashData(data);
                 const result = await this.exportData(data, filename);
-                
+
                 return {
                     exported: true,
                     filename: result.filename,
@@ -510,7 +520,7 @@ class OutputNode extends BaseNode {
                 };
             }
         }
-        
+
         return {
             exported: false,
             filename: null,
@@ -545,7 +555,8 @@ class OutputNode extends BaseNode {
         
         if (trigger && visual) {
             try {
-                const result = await this.callBackendAPI('/api/social/export', {
+                const SOCIAL_EXPORT_API = '/api/social/export';
+const result = await this.callBackendAPI(SOCIAL_EXPORT_API, {
                     visual_data: visual,
                     audio_data: audio,
                     platform: this.getProperty('platform'),
@@ -605,15 +616,40 @@ class OutputNode extends BaseNode {
     }
 
     // Helper methods
-    startVideoRecording(visual, audio) {
+    async startVideoRecording(visual, audio) {
         this.recording = true;
-        // Initialize recording with browser APIs or backend
-        console.log('Starting video recording...');
+        try {
+            const response = await this.callBackendAPI('/api/video/start', {
+                visual_data: visual,
+                audio_data: audio,
+                resolution: this.getProperty('resolution'),
+                framerate: this.getProperty('framerate'),
+                codec: this.getProperty('codec'),
+                bitrate: this.getProperty('bitrate'),
+            });
+            if (response.success) {
+                this.renderTarget = response.render_target;
+            } else {
+                throw new Error(response.message || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Failed to start video recording:', error);
+            this.recording = false;
+        }
     }
 
-    stopVideoRecording() {
+    async stopVideoRecording() {
         this.recording = false;
-        console.log('Stopping video recording...');
+        try {
+            const response = await this.callBackendAPI('/api/video/stop', {});
+            if (response.success) {
+                this.renderTarget = null;
+            } else {
+                throw new Error(response.message || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Failed to stop video recording:', error);
+        }
     }
 
     generateFilename() {
@@ -625,24 +661,64 @@ class OutputNode extends BaseNode {
         return `${base}${timestamp}.${format}`;
     }
 
+    isDataChanged(newData) {
+        const newDataHash = this.hashData(newData);
+        return newDataHash !== this.previousDataHash;
+    }
+
+    hashData(data) {
+        return JSON.stringify(data).length; // Simple hash based on data length
+    }
+
     async exportData(data, filename) {
-        // This would implement actual file export
-        // For now, return mock result
-        return {
-            filename,
-            path: `${this.getProperty('outputPath')}${filename}`,
-            size: JSON.stringify(data).length
-        };
+        try {
+            const response = await this.callBackendAPI('/api/file/export', {
+                data,
+                filename,
+                output_path: this.getProperty('outputPath'),
+                format: this.getProperty('format'),
+                compression: this.getProperty('compression'),
+            });
+            if (response.success) {
+                return {
+                    filename: response.filename,
+                    path: response.path,
+                    size: response.size,
+                };
+            } else {
+                throw new Error(response.message || 'Export failed');
+            }
+        } catch (error) {
+            console.error('Failed to export data:', error);
+            throw error;
+        }
     }
 
     updatePreviewDisplay(visual, audio) {
-        // Update the preview canvas/display
-        // This would integrate with the actual preview system
+        if (this.canvas && this.context) {
+            if (visual) {
+                this.context.drawImage(visual, 0, 0, this.canvas.width, this.canvas.height);
+            }
+            if (audio) {
+                // Render audio visualization (e.g., waveform)
+                this.context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                this.context.fillRect(0, this.canvas.height - 50, this.canvas.width, 50);
+            }
+        }
     }
 
     outputRealTime(visual, audio) {
-        // Output to real-time device/stream
-        // This would integrate with actual output APIs
+        try {
+            this.callBackendAPI('/api/realtime/output', {
+                visual_data: visual,
+                audio_data: audio,
+                device: this.getProperty('outputDevice'),
+                latency: this.getProperty('latency'),
+                buffer_size: this.getProperty('bufferSize'),
+            });
+        } catch (error) {
+            console.error('Failed to output real-time data:', error);
+        }
     }
 
     getLatencyMs() {
@@ -660,8 +736,13 @@ class OutputNode extends BaseNode {
     }
 
     getBufferLoad() {
-        // Calculate buffer load percentage
-        return Math.random() * 0.8; // Mock value
+        try {
+            const response = this.callBackendAPI('/api/realtime/buffer-load', {});
+            return response.buffer_load || 0;
+        } catch (error) {
+            console.error('Failed to fetch buffer load:', error);
+            return 0;
+        }
     }
 
     destroy() {

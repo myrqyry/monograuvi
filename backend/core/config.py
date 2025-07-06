@@ -11,8 +11,11 @@ class Settings:
     
     # Server configuration
     HOST: str = os.getenv("HOST", "localhost")
-    PORT: int = int(os.getenv("PORT", "8000"))
-    DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
+    try:
+        PORT: int = int(os.getenv("PORT", "8000"))
+    except ValueError as e:
+        raise ValueError("Invalid PORT environment variable. Please set it to a valid integer.") from e
+    DEBUG: bool = os.getenv("DEBUG", "true").lower() in ["true", "1", "yes"]
     
     # CORS settings
     ALLOWED_ORIGINS: List[str] = [
@@ -23,12 +26,17 @@ class Settings:
     ]
     
     # File upload settings
-    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    KB: int = 1024
+    MB: int = KB * 1024
+    MAX_FILE_SIZE: int = 100 * MB  # 100MB
     ALLOWED_AUDIO_FORMATS: List[str] = [".mp3", ".wav", ".flac", ".ogg", ".m4a"]
     ALLOWED_VIDEO_FORMATS: List[str] = [".mp4", ".avi", ".mov", ".mkv"]
     
     # Directories
     BASE_DIR: Path = Path(__file__).parent.parent
+    TEMP_AUDIO_DIR: Path = BASE_DIR / "temp" / "audio"
+    TEMP_VIDEO_DIR: Path = BASE_DIR / "temp" / "video"
+    TEMP_ML_DIR: Path = BASE_DIR / "temp" / "ml"
     TEMP_DIR: Path = BASE_DIR / "temp"
     AUDIO_DIR: Path = TEMP_DIR / "audio"
     VIDEO_DIR: Path = TEMP_DIR / "video"
@@ -42,7 +50,7 @@ class Settings:
     
     # ML model settings
     MODEL_CACHE_SIZE: int = 3  # Number of models to keep in memory
-    ENABLE_GPU: bool = True
+    ENABLE_GPU: bool = os.getenv("ENABLE_GPU", "true").lower() in ["true", "1", "yes"]
     
     # WebSocket settings
     WS_HEARTBEAT_INTERVAL: int = 30

@@ -9,9 +9,9 @@ const AudioExtractors = ({ onSelectExtractor }) => {
 
     useEffect(() => {
         const availableExtractors = [
-            { name: 'FFT Analyzer', component: FFTAnalyzer },
-            { name: 'Beat Detector', component: BeatDetector },
-            { name: 'Pitch Detector', component: PitchDetector },
+            { id: 'fft-analyzer', name: 'FFT Analyzer', component: FFTAnalyzer },
+            { id: 'beat-detector', name: 'Beat Detector', component: BeatDetector },
+            { id: 'pitch-detector', name: 'Pitch Detector', component: PitchDetector },
         ];
         setExtractors(availableExtractors);
     }, []);
@@ -24,8 +24,8 @@ const AudioExtractors = ({ onSelectExtractor }) => {
         <div className="audio-extractors">
             <h2>Audio Feature Extractors</h2>
             <ul>
-                {extractors.map((extractor, index) => (
-                    <li key={index} onClick={() => handleSelect(extractor)}>
+                {extractors.map((extractor) => (
+                    <li key={extractor.id} onClick={() => handleSelect(extractor)}>
                         {extractor.name}
                     </li>
                 ))}

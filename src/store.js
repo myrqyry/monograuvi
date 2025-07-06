@@ -20,7 +20,8 @@ const useStore = create((set, get) => ({
   setGraph: (graph) => set({ graph }),
   
   addNode: (node) => set((state) => ({
-    nodes: [...state.nodes, node]
+    nodes: [...state.nodes, node],
+    lastAddedNode: node
   })),
   
   updateNodePosition: (nodeId, position) => set((state) => ({

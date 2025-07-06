@@ -1,7 +1,7 @@
 // src/components/NodeLibrary.jsx
 import React, { useState } from 'react';
 import useStore from '../store';
-import { nodeCategories, nodeDescriptions } from '../nodes/registerNodes.js';
+import { nodeCategories, nodeDescriptions, nodeTypeMapping } from '../nodes/registerNodes.js';
 
 const categoryConfig = {
   Audio: { 
@@ -75,24 +75,22 @@ const nodeIcons = {
   'threshold': 'ri-drag-move-2-line'
 };
 
-// Convert node categories to flat list with proper metadata
+// Build a flat list of all nodes, including uncategorized
 const getAllNodes = () => {
   const allNodes = [];
-  
+  const categorized = new Set();
+  // Add categorized nodes
   Object.entries(nodeCategories).forEach(([categoryName, nodeIds]) => {
     const categoryInfo = categoryConfig[categoryName];
     if (!categoryInfo) return;
-    
     nodeIds.forEach(nodeId => {
+      categorized.add(nodeId);
       const description = nodeDescriptions[nodeId] || 'No description available';
       const icon = nodeIcons[nodeId] || 'ri-node-tree';
-      
-      // Convert node ID to display name
       const displayName = nodeId
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
-      
       allNodes.push({
         id: nodeId,
         name: displayName,
@@ -104,9 +102,63 @@ const getAllNodes = () => {
       });
     });
   });
-  
+  // Add uncategorized nodes (from nodeTypeMapping)
+  if (nodeTypeMapping) {
+    Object.keys(nodeTypeMapping).forEach(nodeId => {
+      if (!categorized.has(nodeId)) {
+        const description = nodeDescriptions[nodeId] || 'No description available';
+        const icon = nodeIcons[nodeId] || 'ri-node-tree';
+        const displayName = nodeId
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        allNodes.push({
+          id: nodeId,
+          name: displayName,
+          category: 'uncategorized',
+          categoryName: 'Uncategorized',
+          icon,
+          description,
+          color: '#888'
+        });
+      }
+    });
+  }
   return allNodes;
 };
+
+function NodeItem({ node }) {
+  // Use window.__addNodeFromSidebar if available for double click
+  return (
+    <div
+      className="node-item group"
+      draggable
+      onDragStart={e => {
+        e.dataTransfer.setData('nodeType', node.id);
+      }}
+      onDoubleClick={() => {
+        if (window.__addNodeFromSidebar) window.__addNodeFromSidebar(node.id);
+      }}
+      title={node.description}
+    >
+      <div className="node-icon" style={{ color: node.color }}>
+        <i className={node.icon}></i>
+      </div>
+      <div className="node-info flex-1">
+        <div className="node-name">{node.name}</div>
+        <div className="node-category text-xs" style={{ color: node.color }}>
+          {node.categoryName}
+        </div>
+        <div className="node-description text-xs text-text-secondary mt-1 line-clamp-2">
+          {node.description}
+        </div>
+      </div>
+      <div className="node-actions opacity-0 group-hover:opacity-100 transition-opacity">
+        <i className="ri-add-line text-accent-primary cursor-pointer"></i>
+      </div>
+    </div>
+  );
+}
 
 function NodeLibrary() {
   const addNode = useStore(state => state.addNode);
@@ -114,14 +166,34 @@ function NodeLibrary() {
   const [expandedCategories, setExpandedCategories] = useState(
     Object.keys(categoryConfig).reduce((acc, key) => ({ ...acc, [key]: true }), {})
   );
+  const [sidebarWidth, setSidebarWidth] = useState(300); // Default width
+  const [isResizing, setIsResizing] = useState(false);
 
-  const allNodes = getAllNodes();
+  const handleMouseDown = () => setIsResizing(true);
+  const handleMouseMove = (e) => {
+    if (isResizing) {
+      setSidebarWidth(Math.max(200, e.clientX)); // Minimum width of 200px
+    }
+  };
+  const handleMouseUp = () => setIsResizing(false);
+
+  React.useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const allNodes = React.useMemo(() => getAllNodes(), []);
   
-  const filteredNodes = allNodes.filter(node =>
+  const filteredNodes = React.useMemo(() => 
+  allNodes.filter(node =>
     node.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     node.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     node.categoryName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ), [allNodes, searchTerm]);
 
   const toggleCategory = (categoryName) => {
     setExpandedCategories(prev => ({
@@ -131,7 +203,27 @@ function NodeLibrary() {
   };
 
   return (
-    <div className="node-library">
+    <div
+      className="node-library bg-bg-base border-r border-border-color overflow-y-auto"
+      style={{
+        width: `${sidebarWidth}px`,
+        minWidth: '200px', // Ensure minimum width
+        maxWidth: '100%', // Prevent overflow
+      }}
+    >
+      <div
+        className="resize-handle bg-border-color"
+        onMouseDown={handleMouseDown}
+        style={{
+          width: '5px',
+          cursor: 'ew-resize',
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10, // Ensure handle is above content
+        }}
+      ></div>
       <div className="p-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center">
           <i className="ri-node-tree mr-2"></i> Node Library
@@ -163,92 +255,58 @@ function NodeLibrary() {
           </div>
           <div className="node-list">
             {filteredNodes.map(node => (
-              <div
-                key={node.id}
-                className="node-item group"
-                draggable
-                onDragStart={e => {
-                  e.dataTransfer.setData('nodeType', node.id);
-                }}
-                onClick={() => {
-                  useStore.setState({ lastAddedNode: node.id });
-                }}
-                title={node.description}
-              >
-                <div className="node-icon" style={{ color: node.color }}>
-                  <i className={node.icon}></i>
-                </div>
-                <div className="node-info flex-1">
-                  <div className="node-name">{node.name}</div>
-                  <div className="node-category text-xs" style={{ color: node.color }}>
-                    {node.categoryName}
-                  </div>
-                  <div className="node-description text-xs text-text-secondary mt-1 line-clamp-2">
-                    {node.description}
-                  </div>
-                </div>
-                <div className="node-actions opacity-0 group-hover:opacity-100 transition-opacity">
-                  <i className="ri-add-line text-accent-primary cursor-pointer"></i>
-                </div>
-              </div>
+              <NodeItem key={node.id} node={node} />
             ))}
           </div>
         </div>
       ) : (
-        // Show categorized nodes
-        Object.entries(categoryConfig).map(([categoryName, categoryInfo]) => {
-          const categoryNodes = allNodes.filter(node => node.categoryName === categoryName);
-          const isExpanded = expandedCategories[categoryName];
-          
-          return (
-            <div key={categoryName} className="category-section">
-              <div 
-                className="category-header cursor-pointer"
-                onClick={() => toggleCategory(categoryName)}
-                style={{ borderLeftColor: categoryInfo.color }}
-              >
-                <div className="flex items-center flex-1">
-                  <i className={categoryInfo.icon} style={{ color: categoryInfo.color }}></i>
-                  <span className="ml-2">{categoryInfo.name}</span>
-                  <span className="ml-2 text-xs text-text-secondary">({categoryNodes.length})</span>
+        // Show categorized nodes, plus uncategorized
+        <>
+          {Object.entries(categoryConfig).map(([categoryName, categoryInfo]) => {
+            const categoryNodes = allNodes.filter(node => node.categoryName === categoryName);
+            const isExpanded = expandedCategories[categoryName];
+            return (
+              <div key={categoryName} className="category-section">
+                <div 
+                  className="category-header cursor-pointer"
+                  onClick={() => toggleCategory(categoryName)}
+                  style={{ borderLeftColor: categoryInfo.color }}
+                >
+                  <div className="flex items-center flex-1">
+                    <i className={categoryInfo.icon} style={{ color: categoryInfo.color }}></i>
+                    <span className="ml-2">{categoryInfo.name}</span>
+                    <span className="ml-2 text-xs text-text-secondary">({categoryNodes.length})</span>
+                  </div>
+                  <i className={`ri-arrow-${isExpanded ? 'up' : 'down'}-s-line text-text-secondary`}></i>
                 </div>
-                <i className={`ri-arrow-${isExpanded ? 'up' : 'down'}-s-line text-text-secondary`}></i>
+                {isExpanded && (
+                  <div className="node-list">
+                    {categoryNodes.map(node => (
+                      <NodeItem key={node.id} node={node} />
+                    ))}
+                  </div>
+                )}
               </div>
-              
-              {isExpanded && (
-                <div className="node-list">
-                  {categoryNodes.map(node => (
-                    <div
-                      key={node.id}
-                      className="node-item group"
-                      draggable
-                      onDragStart={e => {
-                        e.dataTransfer.setData('nodeType', node.id);
-                      }}
-                      onClick={() => {
-                        useStore.setState({ lastAddedNode: node.id });
-                      }}
-                      title={node.description}
-                    >
-                      <div className="node-icon" style={{ color: node.color }}>
-                        <i className={node.icon}></i>
-                      </div>
-                      <div className="node-info flex-1">
-                        <div className="node-name">{node.name}</div>
-                        <div className="node-description text-xs text-text-secondary mt-1 line-clamp-2">
-                          {node.description}
-                        </div>
-                      </div>
-                      <div className="node-actions opacity-0 group-hover:opacity-100 transition-opacity">
-                        <i className="ri-add-line text-accent-primary cursor-pointer"></i>
-                      </div>
-                    </div>
-                  ))}
+            );
+          })}
+          {/* Show uncategorized nodes if any */}
+          {allNodes.some(n => n.categoryName === 'Uncategorized') && (
+            <div className="category-section">
+              <div className="category-header" style={{ borderLeftColor: '#888' }}>
+                <div className="flex items-center flex-1">
+                  <i className="ri-node-tree" style={{ color: '#888' }}></i>
+                  <span className="ml-2">Uncategorized</span>
+                  <span className="ml-2 text-xs text-text-secondary">({allNodes.filter(n => n.categoryName === 'Uncategorized').length})</span>
                 </div>
-              )}
+              </div>
+              <div className="node-list">
+                {allNodes.filter(n => n.categoryName === 'Uncategorized').map(node => (
+                  <NodeItem key={node.id} node={node} />
+                ))}
+              </div>
             </div>
-          );
-        })
+          )}
+        </>
       )}
       
       {filteredNodes.length === 0 && searchTerm && (

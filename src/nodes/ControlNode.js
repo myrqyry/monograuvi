@@ -9,7 +9,7 @@ class ControlNode extends BaseNode {
         });
         
         this.controlType = type;
-        this.internalState = {};
+        this.internalState = null;
         this.lastUpdateTime = performance.now();
         
         this.setupControlNode();
@@ -41,6 +41,9 @@ class ControlNode extends BaseNode {
             case 'trigger':
                 this.setupTrigger();
                 break;
+        default:
+            console.error(`Unknown control type: ${this.controlType}`);
+            throw new Error(`ControlNode setup failed: Unsupported control type "${this.controlType}"`);
         }
     }
 
@@ -219,12 +222,12 @@ class ControlNode extends BaseNode {
             description: 'Mathematical expression',
             category: 'Expression'
         });
-        this.addProperty('clampMin', -Infinity, { 
+        this.addProperty('clampMin', -100, { 
             min: -100, max: 100, step: 0.1,
             description: 'Minimum output value',
             category: 'Output'
         });
-        this.addProperty('clampMax', Infinity, { 
+        this.addProperty('clampMax', 100, { 
             min: -100, max: 100, step: 0.1,
             description: 'Maximum output value',
             category: 'Output'
@@ -411,6 +414,7 @@ class ControlNode extends BaseNode {
     }
 
     processEnvelope(inputs, deltaTime) {
+        const curveType = this.getProperty('curve');
         const trigger = inputs.Trigger || false;
         const gate = inputs.Gate || false;
         const currentTime = performance.now() / 1000;
@@ -445,7 +449,7 @@ class ControlNode extends BaseNode {
                     this.internalState.stageStartTime = currentTime;
                     this.internalState.value = 1;
                 } else {
-                    this.internalState.value = stageTime / attackTime;
+                    this.internalState.value = this.applyCurve(stageTime / attackTime, curveType);
                 }
                 break;
                 
@@ -456,7 +460,7 @@ class ControlNode extends BaseNode {
                     this.internalState.stage = 'sustain';
                     this.internalState.value = sustainLevel;
                 } else {
-                    this.internalState.value = 1 - (1 - sustainLevel) * (stageTime / decayTime);
+                    this.internalState.value = 1 - (1 - sustainLevel) * this.applyCurve(stageTime / decayTime, curveType);
                 }
                 break;
                 
@@ -471,7 +475,7 @@ class ControlNode extends BaseNode {
                     this.internalState.value = 0;
                 } else {
                     const sustainLevel = this.getProperty('sustain');
-                    this.internalState.value = sustainLevel * (1 - stageTime / releaseTime);
+                    this.internalState.value = sustainLevel * (1 - this.applyCurve(stageTime / releaseTime, curveType));
                 }
                 break;
                 
@@ -483,6 +487,19 @@ class ControlNode extends BaseNode {
             Output: this.internalState.value,
             Stage: this.internalState.stage
         };
+    }
+
+    applyCurve(value, curveType) {
+        switch (curveType) {
+            case 'linear':
+                return value;
+            case 'exponential':
+                return Math.pow(value, 2);
+            case 'logarithmic':
+                return Math.log10(value * 9 + 1);
+            default:
+                return value;
+        }
     }
 
     processSequencer(inputs) {
@@ -535,7 +552,8 @@ class ControlNode extends BaseNode {
         // Smooth to target
         const smooth = this.getProperty('smooth');
         if (smooth > 0) {
-            this.internalState.value += (this.internalState.targetValue - this.internalState.value) * (1 - smooth) * deltaTime * 10;
+            const smoothingFactor = Math.exp(-deltaTime / (1 / smooth));
+            this.internalState.value += (this.internalState.targetValue - this.internalState.value) * (1 - smoothingFactor);
         } else {
             this.internalState.value = this.internalState.targetValue;
         }
@@ -577,7 +595,9 @@ class ControlNode extends BaseNode {
             expression = expression.replace(/\bround\b/g, 'Math.round');
             expression = expression.replace(/\bpi\b/g, 'Math.PI');
             
-            let result = eval(expression);
+            const allowedVariables = { A, B, C, D, t, Math };
+            const safeFunction = new Function(...Object.keys(allowedVariables), `return (${expression});`);
+            let result = safeFunction(...Object.values(allowedVariables));
             
             // Apply clamping
             const min = this.getProperty('clampMin');
@@ -617,9 +637,10 @@ class ControlNode extends BaseNode {
             this.internalState.pulseCount++;
             
             // Calculate beat and bar
-            const pulsesPerBeat = subdivision / 4;
-            this.internalState.beat = Math.floor(this.internalState.pulseCount / pulsesPerBeat) % 4;
-            this.internalState.bar = Math.floor(this.internalState.pulseCount / (pulsesPerBeat * 4));
+            const [beatsPerBar, beatUnit] = this.getProperty('timeSignature').split('/').map(Number);
+            const pulsesPerBeat = subdivision / (4 / beatUnit);
+            this.internalState.beat = Math.floor(this.internalState.pulseCount / pulsesPerBeat) % beatsPerBar;
+            this.internalState.bar = Math.floor(this.internalState.pulseCount / (pulsesPerBeat * beatsPerBar));
         }
         
         return {
@@ -662,9 +683,9 @@ class ControlNode extends BaseNode {
         
         // Handle hold time
         const output = this.internalState.triggered && 
-                      (currentTime - this.internalState.triggerTime < holdTime * 1000);
-        
-        if (currentTime - this.internalState.triggerTime >= holdTime * 1000) {
+                      (currentTime - this.internalState.triggerTime < holdTime);
+
+        if (currentTime - this.internalState.triggerTime >= holdTime) {
             this.internalState.triggered = false;
         }
         

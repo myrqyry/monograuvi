@@ -47,6 +47,7 @@ class MLModelManager:
         self.models = OrderedDict()
         self.model_cache_size = settings.MODEL_CACHE_SIZE
         self.device = self._get_device()
+        self.models = OrderedDict()
         self._ready = False
         
         # Model metadata
@@ -82,12 +83,11 @@ class MLModelManager:
             
         except Exception as e:
             logger.error(f"Error loading default models: {e}")
+            model = None
             self._ready = False
     
-    async def _load_audio_classifier(self):
+    def _load_or_create_audio_classifier(self, model_path: Path):
         """Load or create audio genre/mood classifier."""
-        model_path = settings.ML_CACHE_DIR / "audio_classifier.pth"
-        
         try:
             if model_path.exists():
                 # Load existing model
@@ -108,15 +108,13 @@ class MLModelManager:
                 logger.info("Created new audio classifier")
             
             self.models['audio_classifier'] = model
-            
+            self._evict_cache_if_needed()
         except Exception as e:
             logger.error(f"Error loading audio classifier: {e}")
             raise
-    
-    async def _load_clustering_model(self):
+
+    def _load_or_create_clustering_model(self, model_path: Path):
         """Load or create clustering model for audio segmentation."""
-        model_path = settings.ML_CACHE_DIR / "audio_clustering.pkl"
-        
         try:
             if model_path.exists():
                 # Load existing model
@@ -132,15 +130,13 @@ class MLModelManager:
                 logger.info("Created new clustering model")
             
             self.models['audio_clustering'] = model
-            
+            self._evict_cache_if_needed()
         except Exception as e:
             logger.error(f"Error loading clustering model: {e}")
             raise
-    
-    async def _load_feature_scaler(self):
+
+    def _load_or_create_feature_scaler(self, scaler_path: Path):
         """Load or create feature scaler."""
-        scaler_path = settings.ML_CACHE_DIR / "feature_scaler.pkl"
-        
         try:
             if scaler_path.exists():
                 # Load existing scaler
@@ -156,11 +152,68 @@ class MLModelManager:
                 logger.info("Created new feature scaler")
             
             self.models['feature_scaler'] = scaler
+            self._evict_cache_if_needed()
+        except Exception as e:
+            logger.error(f"Error loading feature scaler: {e}")
+            raise
+
+    async def _load_audio_classifier(self):
+        """Load or create audio genre/mood classifier."""
+        model_path = settings.ML_CACHE_DIR / "audio_classifier.pth"
+        
+        try:
+            await asyncio.to_thread(self._load_or_create_audio_classifier, model_path)
+            self.models['audio_classifier'] = model
+            self._evict_cache_if_needed()
+            
+            self.models['audio_classifier'] = model
+            self._evict_cache_if_needed()
+            self._evict_cache_if_needed()
+            
+        except Exception as e:
+            logger.error(f"Error loading audio classifier: {e}")
+            raise
+    
+    async def _load_clustering_model(self):
+        """Load or create clustering model for audio segmentation."""
+        model_path = settings.ML_CACHE_DIR / "audio_clustering.pkl"
+        
+        try:
+            await asyncio.to_thread(self._load_or_create_clustering_model, model_path)
+            self.models['audio_clustering'] = model
+            self._evict_cache_if_needed()
+            
+            self.models['audio_clustering'] = model
+            self._evict_cache_if_needed()
+            self._evict_cache_if_needed()
+            
+        except Exception as e:
+            logger.error(f"Error loading clustering model: {e}")
+            raise
+    
+    async def _load_feature_scaler(self):
+        """Load or create feature scaler."""
+        scaler_path = settings.ML_CACHE_DIR / "feature_scaler.pkl"
+        
+        try:
+            await asyncio.to_thread(self._load_or_create_feature_scaler, scaler_path)
+            self.models['feature_scaler'] = scaler
+            self._evict_cache_if_needed()
+            
+            self.models['feature_scaler'] = scaler
+            self._evict_cache_if_needed()
+            self._evict_cache_if_needed()
             
         except Exception as e:
             logger.error(f"Error loading feature scaler: {e}")
             raise
     
+    def _run_model_inference(self, model, features_tensor):
+        """Run model inference in a separate thread."""
+        with torch.no_grad():
+            predictions = model(features_tensor)
+        return predictions.cpu().numpy()[0]
+
     async def classify_audio_genre(self, mfcc_features: np.ndarray) -> Dict[str, Any]:
         """Classify audio genre using MFCC features."""
         try:
@@ -180,9 +233,7 @@ class MLModelManager:
             features_tensor = torch.FloatTensor(features).unsqueeze(0).to(self.device)
             
             # Predict
-            with torch.no_grad():
-                predictions = model(features_tensor)
-                probabilities = predictions.cpu().numpy()[0]
+            probabilities = await asyncio.to_thread(self._run_model_inference, model, features_tensor)
             
             # Get top predictions
             top_indices = np.argsort(probabilities)[::-1][:3]
@@ -206,6 +257,26 @@ class MLModelManager:
             logger.error(f"Error classifying audio genre: {e}")
             raise
     
+    def _calculate_mood_scores(self, spectral_centroid, spectral_rolloff, zero_crossing_rate, tempo):
+        """Calculate mood scores based on audio features."""
+        brightness = np.mean(spectral_centroid) / 4000.0  # Normalize
+        energy = np.mean(spectral_rolloff) / 8000.0  # Normalize
+        rhythmic_complexity = np.std(zero_crossing_rate)
+        tempo_factor = min(tempo / 120.0, 2.0)  # Normalize around 120 BPM
+        
+        # Simple mood classification based on features
+        mood_scores = {
+            'energetic': (energy * 0.4 + tempo_factor * 0.6),
+            'calm': (1 - energy) * 0.6 + (1 - tempo_factor) * 0.4,
+            'happy': brightness * 0.5 + tempo_factor * 0.3 + energy * 0.2,
+            'sad': (1 - brightness) * 0.5 + (1 - tempo_factor) * 0.5,
+            'aggressive': energy * 0.4 + rhythmic_complexity * 0.3 + tempo_factor * 0.3,
+            'relaxed': (1 - energy) * 0.5 + (1 - rhythmic_complexity) * 0.5,
+            'excited': energy * 0.3 + tempo_factor * 0.4 + rhythmic_complexity * 0.3,
+            'melancholic': (1 - brightness) * 0.4 + (1 - tempo_factor) * 0.4 + (1 - energy) * 0.2
+        }
+        return mood_scores
+
     async def analyze_audio_mood(self, audio_features: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze audio mood based on multiple features."""
         try:
@@ -216,22 +287,7 @@ class MLModelManager:
             tempo = audio_features.get('tempo', 120)
             
             # Calculate mood indicators
-            brightness = np.mean(spectral_centroid) / 4000.0  # Normalize
-            energy = np.mean(spectral_rolloff) / 8000.0  # Normalize
-            rhythmic_complexity = np.std(zero_crossing_rate)
-            tempo_factor = min(tempo / 120.0, 2.0)  # Normalize around 120 BPM
-            
-            # Simple mood classification based on features
-            mood_scores = {
-                'energetic': (energy * 0.4 + tempo_factor * 0.6),
-                'calm': (1 - energy) * 0.6 + (1 - tempo_factor) * 0.4,
-                'happy': brightness * 0.5 + tempo_factor * 0.3 + energy * 0.2,
-                'sad': (1 - brightness) * 0.5 + (1 - tempo_factor) * 0.5,
-                'aggressive': energy * 0.4 + rhythmic_complexity * 0.3 + tempo_factor * 0.3,
-                'relaxed': (1 - energy) * 0.5 + (1 - rhythmic_complexity) * 0.5,
-                'excited': energy * 0.3 + tempo_factor * 0.4 + rhythmic_complexity * 0.3,
-                'melancholic': (1 - brightness) * 0.4 + (1 - tempo_factor) * 0.4 + (1 - energy) * 0.2
-            }
+            mood_scores = await asyncio.to_thread(self._calculate_mood_scores, spectral_centroid, spectral_rolloff, zero_crossing_rate, tempo)
             
             # Normalize scores
             total_score = sum(mood_scores.values())
@@ -277,13 +333,13 @@ class MLModelManager:
             # Scale features
             scaler = self.models.get('feature_scaler', StandardScaler())
             if hasattr(scaler, 'transform'):
-                scaled_features = scaler.fit_transform(features_matrix)
+                scaled_features = scaler.transform(features_matrix)
             else:
                 scaled_features = features_matrix
             
             # Apply clustering
-            clustering_model = KMeans(n_clusters=n_clusters, random_state=42)
-            cluster_labels = clustering_model.fit_predict(scaled_features)
+            clustering_model = self.models['audio_clustering']
+            cluster_labels = clustering_model.predict(scaled_features)
             
             # Calculate cluster statistics
             cluster_centers = clustering_model.cluster_centers_
@@ -323,6 +379,63 @@ class MLModelManager:
             logger.error(f"Error clustering audio segments: {e}")
             raise
     
+    def _generate_visual_parameters_logic(self, tempo, energy, brightness, top_mood, mood_analysis):
+        """Generate visual parameters based on audio analysis."""
+        # Color palette generation
+        color_palettes = {
+            'energetic': [(255, 100, 100), (255, 200, 0), (255, 150, 50)],
+            'calm': [(100, 150, 255), (150, 200, 255), (200, 220, 255)],
+            'happy': [(255, 200, 100), (255, 150, 200), (255, 255, 100)],
+            'sad': [(100, 100, 150), (150, 150, 200), (100, 150, 200)],
+            'aggressive': [(255, 50, 50), (200, 0, 0), (255, 100, 0)],
+            'relaxed': [(150, 255, 150), (200, 255, 200), (100, 200, 150)],
+            'excited': [(255, 0, 255), (255, 100, 255), (200, 0, 200)],
+            'melancholic': [(150, 100, 150), (100, 100, 100), (150, 150, 100)]
+        }
+        
+        # Movement parameters
+        movement_speed = max(0.1, min(2.0, tempo / 120.0))
+        particle_count = int(50 + energy * 200)
+        
+        # Visual effects parameters
+        blur_intensity = max(0, min(1.0, (1 - brightness) * 0.5))
+        saturation = max(0.5, min(1.5, brightness + energy))
+        contrast = max(0.5, min(1.5, energy * 1.2))
+        
+        # Animation parameters
+        beat_responsiveness = max(0.1, min(1.0, energy * 2.0))
+        smooth_transitions = 1 - energy * 0.5  # More energy = less smooth
+        
+        return {
+            'color_palette': color_palettes.get(top_mood, color_palettes['calm']),
+            'movement': {
+                'speed': float(movement_speed),
+                'chaos': float(energy),
+                'fluidity': float(1 - mood_analysis['features']['rhythmic_complexity'])
+            },
+            'particles': {
+                'count': int(particle_count),
+                'size_range': [2, int(8 + energy * 10)],
+                'life_span': float(2 + (1 - energy) * 3)
+            },
+            'effects': {
+                'blur_intensity': float(blur_intensity),
+                'saturation': float(saturation),
+                'contrast': float(contrast),
+                'glow': float(brightness)
+            },
+            'animation': {
+                'beat_responsiveness': float(beat_responsiveness),
+                'smooth_transitions': float(smooth_transitions),
+                'tempo_sync': True if tempo > 80 else False
+            },
+            'camera': {
+                'shake_intensity': float(energy * 0.3),
+                'zoom_variance': float(0.1 + energy * 0.2),
+                'rotation_speed': float(energy * 0.5)
+            }
+        }
+
     async def generate_visual_parameters(self, audio_features: Dict[str, Any],
                                        mood_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """Generate visual parameters based on audio analysis."""
@@ -333,60 +446,7 @@ class MLModelManager:
             brightness = mood_analysis['features']['brightness']
             top_mood = mood_analysis['top_mood']
             
-            # Color palette generation
-            color_palettes = {
-                'energetic': [(255, 100, 100), (255, 200, 0), (255, 150, 50)],
-                'calm': [(100, 150, 255), (150, 200, 255), (200, 220, 255)],
-                'happy': [(255, 200, 100), (255, 150, 200), (255, 255, 100)],
-                'sad': [(100, 100, 150), (150, 150, 200), (100, 150, 200)],
-                'aggressive': [(255, 50, 50), (200, 0, 0), (255, 100, 0)],
-                'relaxed': [(150, 255, 150), (200, 255, 200), (100, 200, 150)],
-                'excited': [(255, 0, 255), (255, 100, 255), (200, 0, 200)],
-                'melancholic': [(150, 100, 150), (100, 100, 100), (150, 150, 100)]
-            }
-            
-            # Movement parameters
-            movement_speed = max(0.1, min(2.0, tempo / 120.0))
-            particle_count = int(50 + energy * 200)
-            
-            # Visual effects parameters
-            blur_intensity = max(0, min(1.0, (1 - brightness) * 0.5))
-            saturation = max(0.5, min(1.5, brightness + energy))
-            contrast = max(0.5, min(1.5, energy * 1.2))
-            
-            # Animation parameters
-            beat_responsiveness = max(0.1, min(1.0, energy * 2.0))
-            smooth_transitions = 1 - energy * 0.5  # More energy = less smooth
-            
-            results = {
-                'color_palette': color_palettes.get(top_mood, color_palettes['calm']),
-                'movement': {
-                    'speed': float(movement_speed),
-                    'chaos': float(energy),
-                    'fluidity': float(1 - mood_analysis['features']['rhythmic_complexity'])
-                },
-                'particles': {
-                    'count': int(particle_count),
-                    'size_range': [2, int(8 + energy * 10)],
-                    'life_span': float(2 + (1 - energy) * 3)
-                },
-                'effects': {
-                    'blur_intensity': float(blur_intensity),
-                    'saturation': float(saturation),
-                    'contrast': float(contrast),
-                    'glow': float(brightness)
-                },
-                'animation': {
-                    'beat_responsiveness': float(beat_responsiveness),
-                    'smooth_transitions': float(smooth_transitions),
-                    'tempo_sync': True if tempo > 80 else False
-                },
-                'camera': {
-                    'shake_intensity': float(energy * 0.3),
-                    'zoom_variance': float(0.1 + energy * 0.2),
-                    'rotation_speed': float(energy * 0.5)
-                }
-            }
+            results = await asyncio.to_thread(self._generate_visual_parameters_logic, tempo, energy, brightness, top_mood, mood_analysis)
             
             logger.info(f"Generated visual parameters for mood: {top_mood}")
             return results
@@ -395,6 +455,26 @@ class MLModelManager:
             logger.error(f"Error generating visual parameters: {e}")
             raise
     
+    def _evict_cache_if_needed(self):
+        """Evict the least recently used model if cache size exceeds limit."""
+        while len(self.models) > self.model_cache_size:
+            evicted_model = self.models.popitem(last=False)
+            logger.info(f"Evicted model from cache: {evicted_model[0]}")
+
+    def _get_model_details(self) -> Dict[str, Any]:
+        """Get details of all loaded models."""
+        details = {}
+        for model_name in self.models:
+            model = self.models[model_name]
+            if hasattr(model, 'parameters'):
+                # PyTorch model
+                param_count = sum(p.numel() for p in model.parameters())
+                details[f'{model_name}_params'] = param_count
+            else:
+                # Sklearn model
+                details[f'{model_name}_type'] = type(model).__name__
+        return details
+
     async def get_status(self) -> Dict[str, Any]:
         """Get status of all loaded models."""
         status = {
@@ -405,20 +485,17 @@ class MLModelManager:
             'max_cache_size': self.model_cache_size
         }
         
-        for model_name in self.models:
-            model = self.models[model_name]
-            if hasattr(model, 'parameters'):
-                # PyTorch model
-                param_count = sum(p.numel() for p in model.parameters())
-                status[f'{model_name}_params'] = param_count
-            else:
-                # Sklearn model
-                status[f'{model_name}_type'] = type(model).__name__
+        model_details = await asyncio.to_thread(self._get_model_details)
+        status.update(model_details)
         
         return status
     
     async def cleanup(self):
         """Cleanup models and free memory."""
+        await asyncio.to_thread(self._perform_cleanup)
+
+    def _perform_cleanup(self):
+        """Perform cleanup of models and memory."""
         self.models.clear()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

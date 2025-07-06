@@ -4,7 +4,7 @@ Machine Learning API routes.
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 import logging
 import numpy as np
@@ -26,25 +26,41 @@ def set_global_instances(ml_manager: MLModelManager):
 class GenreClassificationRequest(BaseModel):
     mfcc_features: List[List[float]]
 
+class AudioFeatures(BaseModel):
+    tempo: float = Field(..., description="Tempo of the audio in BPM")
+    key: str = Field(..., description="Key of the audio (e.g., C major, A minor)")
+    loudness: float = Field(..., description="Loudness of the audio in dB")
+    energy: float = Field(..., description="Energy level of the audio (0 to 1)")
+    valence: float = Field(..., description="Valence of the audio (0 to 1)")
+
+class MoodAnalysis(BaseModel):
+    mood: str = Field(..., description="Detected mood (e.g., happy, sad)")
+    confidence: float = Field(..., description="Confidence level of the mood analysis (0 to 1)")
+
 class MoodAnalysisRequest(BaseModel):
-    audio_features: Dict[str, Any]
+    audio_features: AudioFeatures
 
 class ClusteringRequest(BaseModel):
     features_matrix: List[List[float]]
     n_clusters: int = 8
 
 class VisualParametersRequest(BaseModel):
-    audio_features: Dict[str, Any]
-    mood_analysis: Dict[str, Any]
+    audio_features: AudioFeatures
+    mood_analysis: MoodAnalysis
 
 # Dependency injection with caching
+from threading import Lock
+
+_ml_manager_lock = Lock()
+
 @lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
     """Get cached MLModelManager instance."""
-    if _ml_manager is None:
-        # Fallback to creating new instance if not set by main.py
+    with _ml_manager_lock:
+        if _ml_manager is not None:
+            return _ml_manager
+        # Fallback to creating a cached instance if not set by main.py
         return MLModelManager()
-    return _ml_manager
 
 @router.post("/classify-genre")
 async def classify_genre(
@@ -62,7 +78,7 @@ async def classify_genre(
         })
         
     except Exception as e:
-        logger.error(f"Error classifying genre: {e}")
+        logger.exception(f"Error classifying genre: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/analyze-mood")
@@ -80,7 +96,7 @@ async def analyze_mood(
         })
         
     except Exception as e:
-        logger.error(f"Error analyzing mood: {e}")
+        logger.exception(f"Error analyzing mood: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cluster-segments")
@@ -101,7 +117,7 @@ async def cluster_segments(
         })
         
     except Exception as e:
-        logger.error(f"Error clustering segments: {e}")
+        logger.exception(f"Error clustering segments: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/generate-visual-params")
@@ -121,7 +137,7 @@ async def generate_visual_parameters(
         })
         
     except Exception as e:
-        logger.error(f"Error generating visual parameters: {e}")
+        logger.exception(f"Error generating visual parameters: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/models/status")
@@ -138,30 +154,38 @@ async def get_models_status(
         })
         
     except Exception as e:
-        logger.error(f"Error getting models status: {e}")
+        logger.exception(f"Error getting models status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/models/genres")
-async def get_genre_labels():
+async def get_genre_labels(
+    ml_manager: MLModelManager = Depends(get_ml_manager)
+):
     """Get available genre labels."""
-    return JSONResponse({
-        "status": "success",
-        "genres": [
-            'electronic', 'rock', 'pop', 'jazz', 'classical', 
-            'hip-hop', 'ambient', 'experimental'
-        ]
-    })
+    try:
+        genres = await ml_manager.get_available_genres()
+        return JSONResponse({
+            "status": "success",
+            "genres": genres
+        })
+    except Exception as e:
+        logger.exception(f"Error retrieving genres: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/models/moods")
-async def get_mood_labels():
+async def get_mood_labels(
+    ml_manager: MLModelManager = Depends(get_ml_manager)
+):
     """Get available mood labels."""
-    return JSONResponse({
-        "status": "success",
-        "moods": [
-            'energetic', 'calm', 'happy', 'sad', 'aggressive', 
-            'relaxed', 'excited', 'melancholic'
-        ]
-    })
+    try:
+        moods = await ml_manager.get_available_moods()
+        return JSONResponse({
+            "status": "success",
+            "moods": moods
+        })
+    except Exception as e:
+        logger.exception(f"Error retrieving moods: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/health")
 async def ml_health_check(
@@ -176,7 +200,7 @@ async def ml_health_check(
             "ready": status.get("ready", False)
         })
     except Exception as e:
-        logger.error(f"Error in ML health check: {e}")
+        logger.exception(f"Error in ML health check: {e}")
         return JSONResponse({
             "status": "unhealthy",
             "service": "ml_models",

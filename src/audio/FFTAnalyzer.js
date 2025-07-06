@@ -7,6 +7,7 @@ class FFTAnalyzer extends FeatureExtractor {
         this.analyser = this.audioContext.createAnalyser();
         this.analyser.fftSize = 2048;
         this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
+this.timeDomainData = new Uint8Array(this.analyser.fftSize);
     }
 
     connect(source) {
@@ -19,9 +20,8 @@ class FFTAnalyzer extends FeatureExtractor {
     }
 
     getTimeDomainData() {
-        const timeDomainData = new Uint8Array(this.analyser.fftSize);
-        this.analyser.getByteTimeDomainData(timeDomainData);
-        return timeDomainData;
+this.analyser.getByteTimeDomainData(this.timeDomainData);
+return this.timeDomainData;
     }
 }
 

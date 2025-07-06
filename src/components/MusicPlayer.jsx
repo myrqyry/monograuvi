@@ -10,7 +10,9 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const [trackTitle, setTrackTitle] = useState('No Track Loaded');
   const [trackArtist, setTrackArtist] = useState('');
   const [volume, setVolume] = useState(1);
+  const [bpm, setBpm] = useState(null);
   const [titleNeedsScroll, setTitleNeedsScroll] = useState(false);
+  const [key, setKey] = useState(null);
   const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(true);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -51,8 +53,16 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
           const arrayBuffer = await response.arrayBuffer();
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           setAudioBuffer(audioBuffer);
+
+          // Extract BPM using BeatDetector
+          const bpmValue = await extractBpm(audioBuffer);
+          setBpm(bpmValue);
+
+          // Extract Key using PitchDetector
+          const keyValue = await extractKey(audioBuffer);
+          setKey(keyValue);
         } catch (error) {
-          console.error('Error loading audio buffer:', error);
+          console.error('Error loading audio buffer or extracting BPM:', error);
         }
       }
     };
@@ -64,8 +74,9 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadeddata', handleLoadedData);
 
-    // Set volume
+    // Set volume explicitly on mount
     audio.volume = volume;
+    setVolume(audio.volume);
 
     // Expose audio element
     if (audioRef) {
@@ -80,7 +91,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [audioContext, setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]);
+  }, [setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]);
 
   // Check if text needs scrolling when title or artist changes
   useEffect(() => {
@@ -137,6 +148,11 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       if (onAudioLoad) {
         onAudioLoad(url);
       }
+
+      // Revoke the object URL after it's no longer needed
+      audio.addEventListener('loadeddata', () => {
+        URL.revokeObjectURL(url);
+      }, { once: true });
     }
   };
 
@@ -147,10 +163,11 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   };
 
   const handleVolumeChange = (newVolume) => {
-    setVolume(newVolume);
+    const clampedVolume = Math.max(0, Math.min(1, newVolume));
+    setVolume(clampedVolume);
     const audio = audioElementRef.current;
     if (audio) {
-      audio.volume = newVolume;
+      audio.volume = clampedVolume;
     }
   };
 
@@ -203,7 +220,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
               strokeWidth="3"
               strokeLinecap="round"
               strokeDasharray={strokeDasharray}
-              strokeDashoffset={strokeDashoffset}
+              strokeDashoffset={isNaN(strokeDashoffset) ? "0" : strokeDashoffset}
               transform="rotate(-90 16 16)"
               className="volume-progress"
             />
@@ -272,14 +289,14 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
           <div className="audio-features">
             <div className="feature" style={{ marginBottom: '4px' }}>
               <span>BPM</span>
-              <span>128</span>
+              <span>{bpm || 'N/A'}</span>
             </div>
             <div className="feature">
               <span>KEY</span>
-              <span>Cm</span>
+              <span>{key || 'N/A'}</span>
             </div>
           </div>
-          <VolumeKnob volume={volume} onChange={handleVolumeChange} />
+            <VolumeKnob value={volume} onChange={handleVolumeChange} />
         </div>
       </div>
 

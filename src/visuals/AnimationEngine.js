@@ -1,12 +1,22 @@
 class AnimationEngine {
     constructor(canvas) {
+        if (!(canvas instanceof HTMLCanvasElement)) {
+            throw new Error("Invalid canvas: must be an instance of HTMLCanvasElement.");
+        }
+        const context = canvas.getContext('2d');
+        if (!context) {
+            throw new Error("Invalid canvas: unable to get 2D context.");
+        }
         this.canvas = canvas;
-        this.context = canvas.getContext('2d');
+        this.context = context;
         this.animations = [];
         this.isAnimating = false;
     }
 
     addAnimation(animation) {
+        if (typeof animation.update !== 'function') {
+            throw new Error("Invalid animation: must have an 'update' method.");
+        }
         this.animations.push(animation);
     }
 

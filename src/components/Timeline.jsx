@@ -26,18 +26,28 @@ const Timeline = ({ audioUrl }) => {
         ],
       });
 
-      wavesurfer.current.on('click', (e) => {
-        const time = e.detail.cursorTime;
-        wavesurfer.current.plugins.regions.addRegion({
-          start: time,
-          end: time + 0.1, // a small region
-          content: 'Trigger',
-          color: 'rgba(0, 255, 0, 0.5)',
-        });
-      });
+const addRegion = (time) => {
+  wavesurfer.current.plugins.regions.addRegion({
+    start: time,
+    end: time + 0.1, // a small region
+    content: 'Trigger',
+    color: 'rgba(0, 255, 0, 0.5)',
+  });
+};
+
+// Example: Add a button for explicit region creation
+const handleAddRegion = () => {
+  const currentTime = wavesurfer.current.getCurrentTime();
+  addRegion(currentTime);
+};
 
       if (audioUrl) {
         wavesurfer.current.load(audioUrl);
+
+        wavesurfer.current.on('error', (error) => {
+          console.error('Error loading audio:', error);
+          alert('Failed to load audio. Please check the URL or your network connection.');
+        });
       }
 
       return () => wavesurfer.current.destroy();
@@ -47,6 +57,9 @@ const Timeline = ({ audioUrl }) => {
   return (
     <div className="timeline-container">
       <div ref={waveformRef}></div>
+      <button onClick={handleAddRegion} className="add-region-button">
+        Add Region
+      </button>
     </div>
   );
 };

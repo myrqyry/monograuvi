@@ -51,8 +51,8 @@ export function registerAllNodes() {
     const audioData = this.getInputData(0);
     if (this.nodeInstance && audioData) {
       const result = this.nodeInstance.processAnalyser(audioData);
-      this.setOutputData(0, result['Frequency Data']);
-      this.setOutputData(1, result['Time Data']);
+      this.setOutputData(0, result.frequencyData);
+      this.setOutputData(1, result.timeData);
       this.setOutputData(2, result.RMS);
       this.setOutputData(3, result.Peak);
     }
@@ -72,10 +72,10 @@ export function registerAllNodes() {
     this.nodeInstance = createAudioNode('beat-detector');
   }
   BeatDetectorNode.title = "Beat Detector";
-  BeatDetectorNode.prototype.onExecute = async function() {
+  BeatDetectorNode.prototype.onExecute = function() {
     const audioData = this.getInputData(0);
     if (this.nodeInstance && audioData) {
-      const result = await this.nodeInstance.processBeatDetector(audioData);
+      const result = this.nodeInstance.processBeatDetector(audioData);
       this.setOutputData(0, result.Beat);
       this.setOutputData(1, result.BPM);
       this.setOutputData(2, result.Confidence);
@@ -97,13 +97,13 @@ export function registerAllNodes() {
     this.nodeInstance = createAudioNode('spectral-analyser');
   }
   SpectralAnalyserNode.title = "Spectral Analyser";
-  SpectralAnalyserNode.prototype.onExecute = async function() {
+  SpectralAnalyserNode.prototype.onExecute = function() {
     const audioData = this.getInputData(0);
     if (this.nodeInstance && audioData) {
-      const result = await this.nodeInstance.processSpectralAnalyser(audioData);
-      this.setOutputData(0, result['Spectral Centroid']);
-      this.setOutputData(1, result['Spectral Rolloff']);
-      this.setOutputData(2, result['Spectral Flux']);
+      const result = this.nodeInstance.processSpectralAnalyser(audioData);
+      this.setOutputData(0, result.spectralCentroid);
+      this.setOutputData(1, result.spectralRolloff);
+      this.setOutputData(2, result.spectralFlux);
       this.setOutputData(3, result.MFCC);
       this.setOutputData(4, result.Chroma);
     }
@@ -146,14 +146,14 @@ export function registerAllNodes() {
     this.nodeInstance = createAudioNode('key-detector');
   }
   KeyDetectorNode.title = "Key Detector";
-  KeyDetectorNode.prototype.onExecute = async function() {
+  KeyDetectorNode.prototype.onExecute = function() {
     const audioData = this.getInputData(0);
     if (this.nodeInstance && audioData) {
-      const result = await this.nodeInstance.processKeyDetector(audioData);
+      const result = this.nodeInstance.processKeyDetector(audioData);
       this.setOutputData(0, result.Key);
       this.setOutputData(1, result.Mode);
       this.setOutputData(2, result.Confidence);
-      this.setOutputData(3, result['Key Profile']);
+      this.setOutputData(3, result.keyProfile);
     }
   };
 
@@ -171,10 +171,10 @@ export function registerAllNodes() {
     this.nodeInstance = createAudioNode('mood-analyser');
   }
   MoodAnalyserNode.title = "Mood Analyser";
-  MoodAnalyserNode.prototype.onExecute = async function() {
+  MoodAnalyserNode.prototype.onExecute = function() {
     const audioData = this.getInputData(0);
     if (this.nodeInstance && audioData) {
-      const result = await this.nodeInstance.processMoodAnalyser(audioData);
+      const result = this.nodeInstance.processMoodAnalyser(audioData);
       this.setOutputData(0, result.Valence);
       this.setOutputData(1, result.Energy);
       this.setOutputData(2, result.Danceability);
@@ -271,14 +271,14 @@ export function registerAllNodes() {
     this.nodeInstance = createVisualNode('shader-effect');
   }
   ShaderEffectNode.title = "Shader Effect";
-  ShaderEffectNode.prototype.onExecute = async function() {
+  ShaderEffectNode.prototype.onExecute = function() {
     const inputs = {
       'Input Texture': this.getInputData(0),
       Time: this.getInputData(1),
       'Audio Data': this.getInputData(2)
     };
     if (this.nodeInstance) {
-      const result = await this.nodeInstance.processShaderEffect(inputs);
+      const result = this.nodeInstance.processShaderEffect(inputs);
       this.setOutputData(0, result.Visual);
     }
   };
@@ -343,7 +343,8 @@ export function registerAllNodes() {
   LFONode.title = "LFO";
   LFONode.prototype.onExecute = function() {
     if (this.nodeInstance) {
-      const result = this.nodeInstance.processLFO(0.016); // Approximate 60fps
+      const deltaTime = this.graph ? this.graph.elapsed_time : 0.016;
+      const result = this.nodeInstance.processLFO(deltaTime);
       this.setOutputData(0, result.Output);
       this.setOutputData(1, result.Inverted);
       this.setOutputData(2, result.Trigger);
@@ -369,7 +370,8 @@ export function registerAllNodes() {
       Gate: this.getInputData(1)
     };
     if (this.nodeInstance) {
-      const result = this.nodeInstance.processEnvelope(inputs, 0.016);
+      const deltaTime = this.graph ? this.graph.elapsed_time : 0.016;
+      const result = this.nodeInstance.processEnvelope(inputs, deltaTime);
       this.setOutputData(0, result.Output);
       this.setOutputData(1, result.Stage);
     }
@@ -420,7 +422,8 @@ export function registerAllNodes() {
       Rate: this.getInputData(1)
     };
     if (this.nodeInstance) {
-      const result = this.nodeInstance.processRandom(inputs, 0.016);
+      const deltaTime = this.graph ? this.graph.elapsed_time : 0.016;
+      const result = this.nodeInstance.processRandom(inputs, deltaTime);
       this.setOutputData(0, result.Output);
       this.setOutputData(1, result.Scaled);
     }
@@ -440,14 +443,14 @@ export function registerAllNodes() {
     this.nodeInstance = createOutputNode('video-render');
   }
   VideoRenderNode.title = "Video Render";
-  VideoRenderNode.prototype.onExecute = async function() {
+  VideoRenderNode.prototype.onExecute = function() {
     const inputs = {
       Visual: this.getInputData(0),
       Audio: this.getInputData(1),
       Trigger: this.getInputData(2)
     };
     if (this.nodeInstance) {
-      await this.nodeInstance.processVideoRender(inputs);
+      this.nodeInstance.processVideoRender(inputs);
     }
   };
 

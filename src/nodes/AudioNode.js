@@ -344,18 +344,24 @@ class AudioNode extends BaseNode {
     }
 
     processAnalyser(audioInput) {
-        // This would integrate with actual audio analysis
-        // For now, return mock data based on properties
-        const fftSize = this.getProperty('fftSize');
-        const freqData = new Array(fftSize / 2).fill(0).map(() => Math.random());
-        const timeData = new Array(fftSize).fill(0).map(() => Math.random() * 2 - 1);
-        
-        const rms = Math.sqrt(timeData.reduce((sum, val) => sum + val * val, 0) / timeData.length);
-        const peak = Math.max(...timeData.map(Math.abs));
-        
+        if (!this.analyser) {
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = this.getProperty('fftSize');
+            this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
+            this.timeData = new Uint8Array(this.analyser.fftSize);
+        }
+
+        this.analyser.getByteFrequencyData(this.frequencyData);
+        this.analyser.getByteTimeDomainData(this.timeData);
+
+        const rms = Math.sqrt(
+            this.timeData.reduce((sum, val) => sum + Math.pow(val / 128 - 1, 2), 0) / this.timeData.length
+        );
+        const peak = Math.max(...this.timeData.map(val => Math.abs(val / 128 - 1)));
+
         return {
-            'Frequency Data': freqData,
-            'Time Data': timeData,
+            'Frequency Data': Array.from(this.frequencyData),
+            'Time Data': Array.from(this.timeData),
             'RMS': rms,
             'Peak': peak
         };
@@ -369,19 +375,23 @@ class AudioNode extends BaseNode {
      */
     async processSpectralAnalyser(audioInput) {
         if (this.getProperty('useBackend')) {
-            const result = await this.callBackendAPIWithFallback(
-                '/api/audio/spectral-analysis',
-                {
-                    audio_data: audioInput,
-                    mfcc_count: this.getProperty('mfccCount'),
-                    chroma_bins: this.getProperty('chromaBins')
-                },
-                'spectral',
-                {
-                    mfccCount: this.getProperty('mfccCount'),
-                    chromaBins: this.getProperty('chromaBins')
-                }
-            );
+        const API_ENDPOINTS = {
+            SPECTRAL_ANALYSIS: '/api/audio/spectral-analysis',
+        };
+
+        const result = await this.callBackendAPIWithFallback(
+            API_ENDPOINTS.SPECTRAL_ANALYSIS,
+            {
+                audio_data: audioInput,
+                mfcc_count: this.getProperty('mfccCount'),
+                chroma_bins: this.getProperty('chromaBins')
+            },
+            'spectral',
+            {
+                mfccCount: this.getProperty('mfccCount'),
+                chromaBins: this.getProperty('chromaBins')
+            }
+        );
             
             if (result.success) {
                 return {
@@ -400,8 +410,12 @@ class AudioNode extends BaseNode {
     }
 
     async processBeatDetector(audioInput) {
+        const API_ENDPOINTS = {
+            BEAT_DETECTION: '/api/audio/beat-detection',
+        };
+
         const result = await this.callBackendAPIWithFallback(
-            '/api/audio/beat-detection',
+            API_ENDPOINTS.BEAT_DETECTION,
             {
                 audio_data: audioInput,
                 sensitivity: this.getProperty('sensitivity'),
@@ -425,8 +439,12 @@ class AudioNode extends BaseNode {
 
     async processKeyDetector(audioInput) {
         if (this.getProperty('useBackend')) {
+            const API_ENDPOINTS = {
+                KEY_DETECTION: '/api/audio/key-detection',
+            };
+
             const result = await this.callBackendAPIWithFallback(
-                '/api/audio/key-detection',
+                API_ENDPOINTS.KEY_DETECTION,
                 {
                     audio_data: audioInput,
                     algorithm: this.getProperty('algorithm'),
@@ -459,8 +477,12 @@ class AudioNode extends BaseNode {
      */
     async processMoodAnalyser(audioInput) {
         if (this.getProperty('useBackend')) {
+            const API_ENDPOINTS = {
+                MOOD_ANALYSIS: '/api/ml/mood-analysis',
+            };
+
             const result = await this.callBackendAPIWithFallback(
-                '/api/ml/mood-analysis',
+                API_ENDPOINTS.MOOD_ANALYSIS,
                 {
                     audio_data: audioInput,
                     model_type: this.getProperty('modelType')
@@ -486,30 +508,63 @@ class AudioNode extends BaseNode {
     }
 
     processSpectralAnalyserFrontend(audioInput) {
-        // Simplified frontend spectral analysis
+        if (!this.analyser) {
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = this.getProperty('fftSize');
+            this.frequencyData = new Float32Array(this.analyser.frequencyBinCount);
+        }
+
+        this.analyser.getFloatFrequencyData(this.frequencyData);
+
+        const spectralCentroid = this.frequencyData.reduce((sum, value, index) => {
+            return sum + (value * index);
+        }, 0) / this.frequencyData.reduce((sum, value) => sum + value, 0);
+
+        const spectralRolloff = this.frequencyData.findIndex((value, index, array) => {
+            const cumulativeSum = array.slice(0, index + 1).reduce((sum, val) => sum + val, 0);
+            return cumulativeSum >= 0.85 * array.reduce((sum, val) => sum + val, 0);
+        });
+
+        const spectralFlux = this.frequencyData.reduce((sum, value, index, array) => {
+            if (index === 0) return sum;
+            return sum + Math.pow(value - array[index - 1], 2);
+        }, 0);
+
+        const mfcc = new Array(this.getProperty('mfccCount')).fill(0).map((_, i) => {
+            return Math.log(1 + i) * Math.random(); // Placeholder for actual MFCC calculation
+        });
+
+        const chroma = new Array(this.getProperty('chromaBins')).fill(0).map((_, i) => {
+            return Math.sin(i) * Math.random(); // Placeholder for actual Chroma calculation
+        });
+
         return {
-            'Spectral Centroid': Math.random() * 2000 + 500,
-            'Spectral Rolloff': Math.random() * 5000 + 2000,
-            'Spectral Flux': Math.random(),
-            'MFCC': new Array(this.getProperty('mfccCount')).fill(0).map(() => Math.random()),
-            'Chroma': new Array(this.getProperty('chromaBins')).fill(0).map(() => Math.random())
+            'Spectral Centroid': spectralCentroid,
+            'Spectral Rolloff': spectralRolloff,
+            'Spectral Flux': spectralFlux,
+            'MFCC': mfcc,
+            'Chroma': chroma
         };
     }
 
     processFilter(audioInput, inputs) {
+        if (!this.filterNode) {
+            this.filterNode = this.audioContext.createBiquadFilter();
+            this.filterNode.type = this.getProperty('type');
+            this.filterNode.frequency.value = this.getProperty('frequency');
+            this.filterNode.Q.value = this.getProperty('Q');
+            this.filterNode.gain.value = this.getProperty('gain');
+        }
+
         const frequency = inputs.Frequency || this.getProperty('frequency');
         const q = inputs.Q || this.getProperty('Q');
-        
-        // This would apply actual filtering
+        this.filterNode.frequency.value = frequency;
+        this.filterNode.Q.value = q;
+
+        const filteredAudio = audioInput.connect(this.filterNode);
+
         return {
-            'Audio': {
-                ...audioInput,
-                filtered: true,
-                filterType: this.getProperty('type'),
-                frequency,
-                Q: q,
-                gain: this.getProperty('gain')
-            }
+            'Audio': filteredAudio
         };
     }
 
@@ -536,18 +591,28 @@ class AudioNode extends BaseNode {
     }
 
     processPitchDetector(audioInput) {
-        // Mock pitch detection with improved note calculation
-        const minPitch = this.getProperty('minPitch');
-        const maxPitch = this.getProperty('maxPitch');
-        const pitch = minPitch + Math.random() * (maxPitch - minPitch);
-        
+        if (!this.pitchDetectorNode) {
+            this.pitchDetectorNode = this.audioContext.createAnalyser();
+            this.pitchDetectorNode.fftSize = 2048;
+            this.frequencyData = new Float32Array(this.pitchDetectorNode.frequencyBinCount);
+        }
+
+        this.pitchDetectorNode.getFloatFrequencyData(this.frequencyData);
+
+        const maxAmplitudeIndex = this.frequencyData.reduce((maxIndex, value, index, array) => {
+            return value > array[maxIndex] ? index : maxIndex;
+        }, 0);
+
+        const sampleRate = this.audioContext.sampleRate;
+        const pitch = (sampleRate / this.pitchDetectorNode.fftSize) * maxAmplitudeIndex;
+
         const noteInfo = this.frequencyToNote(pitch);
-        
+
         return {
             'Pitch': pitch,
             'Note': noteInfo.note,
             'Cents': noteInfo.cents,
-            'Clarity': Math.random()
+            'Clarity': Math.random() // Placeholder for clarity calculation
         };
     }
 
@@ -555,17 +620,25 @@ class AudioNode extends BaseNode {
         // Validate property values
         if (name === 'fftSize' && ![256, 512, 1024, 2048, 4096, 8192, 16384].includes(value)) {
             console.warn(`Invalid fftSize value: ${value}, using default 2048`);
-            this.setProperty('fftSize', 2048);
+            if (this.getProperty('fftSize') !== 2048) {
+                this.properties.fftSize = 2048; // Directly update without triggering onPropertyChanged
+            }
             return;
         }
         
         if (name === 'minBPM' && (value < 30 || value > 200)) {
-            console.warn(`Invalid minBPM value: ${value}, must be between 30 and 200`);
+            console.warn(`Invalid minBPM value: ${value}, resetting to default 60`);
+            if (this.getProperty('minBPM') !== 60) {
+                this.properties.minBPM = 60; // Directly update without triggering onPropertyChanged
+            }
             return;
         }
         
         if (name === 'maxBPM' && (value < 80 || value > 300)) {
-            console.warn(`Invalid maxBPM value: ${value}, must be between 80 and 300`);
+            console.warn(`Invalid maxBPM value: ${value}, resetting to default 180`);
+            if (this.getProperty('maxBPM') !== 180) {
+                this.properties.maxBPM = 180; // Directly update without triggering onPropertyChanged
+            }
             return;
         }
         
@@ -589,12 +662,7 @@ class AudioNode extends BaseNode {
         }
         
         if (this.audioContext && this.audioContext.state !== 'closed') {
-            try {
-                this.audioContext.close();
-            } catch (error) {
-                console.warn('Error closing audio context:', error);
-            }
-            this.audioContext = null;
+            console.warn('Audio context lifecycle should be managed externally. Skipping closure.');
         }
         
         // Reset data arrays

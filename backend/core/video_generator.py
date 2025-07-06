@@ -46,19 +46,24 @@ class VideoGenerator:
             tempo = audio_features.get('tempo', 120)
             
             # Create frames
-            frames = []
             total_frames = int(duration * fps)
+            from uuid import uuid4
+            unique_id = uuid4().hex
+            output_path = self.temp_dir / f"reactive_video_{unique_id}.mp4"
+            height, width = height, width
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
+            out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
             
             for frame_idx in range(total_frames):
                 current_time = frame_idx / fps
                 frame = self._generate_reactive_frame(
                     current_time, beats, spectral_centroid, tempo, width, height
                 )
-                frames.append(frame)
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                out.write(frame_bgr)
             
-            # Save as video
-            output_path = self.temp_dir / f"reactive_video_{int(current_time)}.mp4"
-            self._save_frames_as_video(frames, str(output_path), fps)
+            out.release()
+            logger.info(f"Generated audio-reactive video: {output_path}")
             
             logger.info(f"Generated audio-reactive video: {output_path}")
             return str(output_path)
@@ -81,9 +86,11 @@ class VideoGenerator:
                 beat_intensity = max(beat_intensity, 1.0 - abs(time - beat_time) * 10)
         
         # Calculate spectral intensity
-        frame_idx = int(time * 30)  # Assuming ~30 fps for features
+        feature_fps = video_config.get('feature_fps', 30)  # Default to 30 if not provided
+        frame_idx = int(time * feature_fps)
         if frame_idx < len(spectral_centroid):
-            spectral_intensity = spectral_centroid[frame_idx] / 4000.0  # Normalize
+            spectral_max = video_config.get('spectral_max', max(spectral_centroid) if spectral_centroid else 4000.0)
+            spectral_intensity = spectral_centroid[frame_idx] / spectral_max  # Normalize
         else:
             spectral_intensity = 0.5
         
@@ -106,12 +113,13 @@ class VideoGenerator:
             wave_height = int(20 * wave_intensity)
             cv2.line(frame, (x, wave_y), (x, wave_y + wave_height), (100, 200, 255), 2)
         
-        # Frequency bars
-        num_bars = 32
-        bar_width = width // num_bars
-        for i in range(num_bars):
-            if i < len(spectral_centroid):
-                bar_height = int(spectral_intensity * height * 0.3)
+        # Frequency bars visualization using frequency-domain data
+        if 'frequency_bins' in video_config:
+            frequency_bins = video_config['frequency_bins']
+            num_bars = min(len(frequency_bins), 32)  # Limit to 32 bars
+            bar_width = width // num_bars
+            for i, bin_value in enumerate(frequency_bins[:num_bars]):
+                bar_height = int(bin_value * height * 0.3)  # Normalize to height
                 x = i * bar_width
                 y = height - bar_height
                 color_intensity = int(255 * (i / num_bars))
@@ -141,25 +149,34 @@ class VideoGenerator:
                                      spectrogram_type: str = 'mel') -> str:
         """Create a video showing animated spectrogram."""
         try:
-            # This would integrate with the audio processor
-            # For now, create a placeholder
+            from scipy.signal import spectrogram
+            import soundfile as sf
+
+            # Read audio file
+            audio_data, sample_rate = sf.read(audio_file)
+
+            # Compute spectrogram
+            frequencies, times, Sxx = spectrogram(audio_data, fs=sample_rate, nperseg=1024)
+
+            # Normalize spectrogram for visualization
+            Sxx_log = 10 * np.log10(Sxx + 1e-10)
+
+            # Create spectrogram video
             output_path = self.temp_dir / f"spectrogram_{spectrogram_type}.mp4"
-            
-            # Create a simple animated spectrogram
             fig, ax = plt.subplots(figsize=(12, 8))
-            
-            def animate(frame):
+
+            def animate(frame_idx):
                 ax.clear()
-                # Simulate spectrogram data
-                freq_data = np.random.random((128, 100)) * frame / 100
-                ax.imshow(freq_data, aspect='auto', origin='lower')
+                ax.imshow(Sxx_log[:, :frame_idx], aspect='auto', origin='lower', extent=[0, times[frame_idx], frequencies[0], frequencies[-1]])
                 ax.set_title(f'{spectrogram_type.title()} Spectrogram')
-                ax.set_xlabel('Time')
-                ax.set_ylabel('Frequency')
-            
-            # Create animation
-            ani = animation.FuncAnimation(fig, animate, frames=300, interval=50)
-            ani.save(str(output_path), writer='ffmpeg', fps=20)
+                ax.set_xlabel('Time (s)')
+                ax.set_ylabel('Frequency (Hz)')
+
+            total_frames = len(times)
+            animation_fps = video_config.get('animation_fps', 20)
+            interval = 1000 // animation_fps  # Calculate interval in milliseconds
+            ani = animation.FuncAnimation(fig, animate, frames=total_frames, interval=interval)
+            ani.save(str(output_path), writer='ffmpeg', fps=animation_fps)
             plt.close()
             
             logger.info(f"Generated spectrogram video: {output_path}")
@@ -183,11 +200,12 @@ class VideoGenerator:
             final_clip = video_clip.set_audio(audio_clip)
             
             output_path = self.temp_dir / f"final_video_{int(audio_clip.duration)}.mp4"
+            output_fps = video_config.get('output_fps', video_clip.fps if hasattr(video_clip, 'fps') else 30)
             final_clip.write_videofile(
                 str(output_path),
                 codec='libx264',
                 audio_codec='aac',
-                fps=30
+                fps=output_fps
             )
             
             # Cleanup
@@ -269,7 +287,9 @@ class VideoGenerator:
                 frames.append(frame)
             
             # Save video
-            output_path = self.temp_dir / f"particles_{num_particles}.mp4"
+            from uuid import uuid4
+            unique_id = uuid4().hex
+            output_path = self.temp_dir / f"particles_{unique_id}.mp4"
             self._save_frames_as_video(frames, str(output_path), fps)
             
             logger.info(f"Generated particle system video: {output_path}")
@@ -320,17 +340,17 @@ class VideoGenerator:
                 particle['size'] *= (1 + beat_intensity * 0.3)
             
             # Boundary conditions
-            if particle['x'] < 0 or particle['x'] > 1920:
+            if particle['x'] < 0 or particle['x'] > width:
                 particle['vx'] *= -0.8
-            if particle['y'] < 0 or particle['y'] > 1080:
+            if particle['y'] < 0 or particle['y'] > height:
                 particle['vy'] *= -0.8
             
             # Update life
             particle['life'] *= 0.998
             if particle['life'] < 0.1:
                 particle['life'] = 1.0
-                particle['x'] = np.random.uniform(0, 1920)
-                particle['y'] = np.random.uniform(0, 1080)
+                particle['x'] = np.random.uniform(0, width)
+                particle['y'] = np.random.uniform(0, height)
     
     def _render_particles(self, particles: List[Dict], width: int, height: int) -> np.ndarray:
         """Render particles to frame."""

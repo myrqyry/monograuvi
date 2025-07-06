@@ -8,16 +8,28 @@ class Typography {
     }
 
     init(canvas) {
+        if (!(canvas instanceof HTMLCanvasElement)) {
+            throw new Error('Provided canvas is not a valid HTMLCanvasElement.');
+        }
         this.canvas = canvas;
         this.context = canvas.getContext('2d');
         this.setupCanvas();
+        window.addEventListener('resize', this.handleResize.bind(this));
         this.startAnimation();
+    }
+
+    handleResize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.setupCanvas();
     }
 
     setupCanvas() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
-        this.context.font = `${this.options.fontSize || 48}px ${this.options.fontFamily || 'Arial'}`;
+        const DEFAULT_FONT_SIZE = 48;
+        const DEFAULT_FONT_FAMILY = 'Arial';
+        this.context.font = `${this.options.fontSize || DEFAULT_FONT_SIZE}px ${this.options.fontFamily || DEFAULT_FONT_FAMILY}`;
         this.context.fillStyle = this.options.color || '#FFFFFF';
         this.context.textAlign = 'center';
         this.context.textBaseline = 'middle';

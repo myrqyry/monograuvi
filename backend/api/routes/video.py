@@ -43,17 +43,22 @@ async def validate_audio_file(file: UploadFile) -> bytes:
         HTTPException: If file validation fails
     """
     try:
-        # Read file content
-        content = await file.read()
+        # Stream file content directly to a temporary file
+        tmp_file_path = None
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
+            while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
+                tmp_file.write(chunk)
+            tmp_file_path = tmp_file.name
         
         # Validate file using robust validation
-        is_valid, error_message = file_validator.validate_audio_file(content, file.filename)
+        is_valid, error_message = file_validator.validate_audio_file(tmp_file_path, file.filename)
         
         if not is_valid:
+            os.unlink(tmp_file_path)  # Cleanup temporary file
             raise HTTPException(status_code=400, detail=f"Audio file validation failed: {error_message}")
         
         logger.info(f"Audio file validation passed: {file.filename}")
-        return content
+        return tmp_file_path
         
     except HTTPException:
         raise
@@ -75,17 +80,21 @@ async def validate_video_file(file: UploadFile) -> bytes:
         HTTPException: If file validation fails
     """
     try:
-        # Read file content
-        content = await file.read()
+        # Stream file content directly to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
+            while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
+                tmp_file.write(chunk)
+            tmp_file_path = tmp_file.name
         
         # Validate file using robust validation
-        is_valid, error_message = file_validator.validate_video_file(content, file.filename)
+        is_valid, error_message = file_validator.validate_video_file(tmp_file_path, file.filename)
         
         if not is_valid:
+            os.unlink(tmp_file_path)  # Cleanup temporary file
             raise HTTPException(status_code=400, detail=f"Video file validation failed: {error_message}")
         
         logger.info(f"Video file validation passed: {file.filename}")
-        return content
+        return tmp_file_path
         
     except HTTPException:
         raise
@@ -150,9 +159,18 @@ async def create_reactive_video(
             "config": request.video_config.dict()
         })
         
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error creating reactive video: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
+        logger.error(f"Error creating reactive video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error creating reactive video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error creating reactive video: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 @router.post("/create-spectrogram")
 async def create_spectrogram_video(
@@ -166,6 +184,7 @@ async def create_spectrogram_video(
         content = await validate_audio_file(audio_file)
         
         # Save uploaded file temporarily
+        tmp_file_path = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.filename).suffix) as tmp_file:
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
@@ -188,9 +207,18 @@ async def create_spectrogram_video(
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
                 
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error creating spectrogram video: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
+        logger.error(f"Error creating spectrogram video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error creating spectrogram video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error creating spectrogram video: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 class ParticleVideoRequest(BaseModel):
     audio_features: Dict[str, Any]
@@ -214,9 +242,18 @@ async def create_particle_video(
             "particle_config": request.particle_config.dict()
         })
         
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error creating particle video: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
+        logger.error(f"Error creating particle video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error creating particle video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error creating particle video: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 @router.post("/add-audio")
 async def add_audio_to_video(
@@ -227,16 +264,18 @@ async def add_audio_to_video(
     """Combine video with audio track."""
     try:
         # Validate files using robust validation
-        video_content = await validate_video_file(video_file)
-        audio_content = await validate_audio_file(audio_file)
-        
-        # Save uploaded files temporarily
+        # Stream video file content directly to a temporary file
+        video_tmp_path = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.filename).suffix) as video_tmp:
-            video_tmp.write(video_content)
+            while chunk := await video_file.read(1024 * 1024):  # Read in 1MB chunks
+                video_tmp.write(chunk)
             video_tmp_path = video_tmp.name
         
+        # Stream audio file content directly to a temporary file
+        audio_tmp_path = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.filename).suffix) as audio_tmp:
-            audio_tmp.write(audio_content)
+            while chunk := await audio_file.read(1024 * 1024):  # Read in 1MB chunks
+                audio_tmp.write(chunk)
             audio_tmp_path = audio_tmp.name
         
         try:
@@ -258,9 +297,18 @@ async def add_audio_to_video(
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
                 
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error adding audio to video: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
+        logger.error(f"Error adding audio to video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error adding audio to video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error adding audio to video: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 @router.post("/apply-effects")
 async def apply_video_effects(
@@ -274,6 +322,7 @@ async def apply_video_effects(
         content = await validate_video_file(video_file)
         
         # Save uploaded file temporarily
+        tmp_file_path = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.filename).suffix) as tmp_file:
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
@@ -299,9 +348,18 @@ async def apply_video_effects(
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
                 
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error applying video effects: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
+        logger.error(f"Error applying video effects: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error applying video effects: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error applying video effects: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 class MoodVideoRequest(BaseModel):
     audio_features: Dict[str, Any]
@@ -341,16 +399,30 @@ async def generate_video_from_mood(
             "config": enhanced_config
         })
         
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error generating mood-based video: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
+        logger.error(f"Error generating mood-based video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error generating mood-based video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error generating mood-based video: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 @router.get("/download/{filename}")
 async def download_video(filename: str):
     """Download generated video file."""
     try:
         # Construct file path (in production, add proper security checks)
-        file_path = Path("backend/temp/video") / filename
+        # Validate filename to prevent path traversal
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        # Construct secure file path
+        file_path = Path("backend/temp/video") / Path(filename).name
         
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Video file not found")
@@ -361,9 +433,18 @@ async def download_video(filename: str):
             media_type="video/mp4"
         )
         
-    except Exception as e:
+    except (FileNotFoundError, PermissionError) as e:
         logger.error(f"Error downloading video: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    except (FileNotFoundError, PermissionError, OSError, RuntimeError) as e:
+        logger.error(f"Error downloading video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        logger.error(f"File handling error downloading video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unhandled error downloading video: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 @router.get("/health")
 async def video_health_check(

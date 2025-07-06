@@ -20,9 +20,9 @@ function ThemeSelector({ currentTheme, onChangeTheme }) {
             title={theme.name}
           >
             <div className="theme-colors">
-              {theme.colors.map((color, idx) => (
+              {theme.colors.map(color => (
                 <div 
-                  key={idx} 
+                  key={color} 
                   className="theme-color-swatch" 
                   style={{ backgroundColor: color }}
                 />
