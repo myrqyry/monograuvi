@@ -10,9 +10,10 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const [trackTitle, setTrackTitle] = useState('No Track Loaded');
   const [trackArtist, setTrackArtist] = useState('');
   const [volume, setVolume] = useState(1);
-  const [bpm, setBpm] = useState(null);
+  // Local bpm and key will now be primarily driven by the store's audioMetadata
+  // const [bpm, setBpm] = useState(null);
+  // const [key, setKey] = useState(null);
   const [titleNeedsScroll, setTitleNeedsScroll] = useState(false);
-  const [key, setKey] = useState(null);
   const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(true);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -26,8 +27,26 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     setAudioBuffer,
     setCurrentTime,
     setIsPlaying,
-    setDuration
-  } = useStore();
+    setDuration,
+    setAudioMetadata // Will be added to store in the next step
+  } = useStore(state => ({
+    audioContext: state.audioContext,
+    isPlaying: state.isPlaying,
+    currentTime: state.currentTime,
+    duration: state.duration,
+    setAudioBuffer: state.setAudioBuffer,
+    setCurrentTime: state.setCurrentTime,
+    setIsPlaying: state.setIsPlaying,
+    setDuration: state.setDuration,
+    setAudioMetadata: state.setAudioMetadata,
+    audioMetadata: state.audioMetadata, // Subscribe to audioMetadata
+  }));
+
+  // Extract bpm and key for display, handling potential null values
+  const displayBpm = audioMetadata?.tempo ? Math.round(audioMetadata.tempo) : 'N/A';
+  const displayKey = audioMetadata?.key || 'N/A';
+  const analysisError = audioMetadata?.error;
+
 
   // Setup HTML5 audio element
   useEffect(() => {
@@ -140,10 +159,71 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         onAudioLoad(url);
       }
 
+      // Analyze audio features
+      analyzeAudioFile(file);
+
       // Revoke the object URL after it's no longer needed
+      // It's better to revoke it once the analysis is also done or if analysis fails.
+      // For now, keeping original behavior, but this might need adjustment.
       audio.addEventListener('loadeddata', () => {
-        URL.revokeObjectURL(url);
+        // URL.revokeObjectURL(url); // Consider moving this if 'url' is needed longer by analysis
       }, { once: true });
+    }
+  };
+
+  const analyzeAudioFile = async (file) => {
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/audio/analyze?analysis_type=full', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        console.error('Audio analysis failed:', errorData);
+        // Potentially update UI to show error
+        if (setAudioMetadata) { // Check if action exists
+          setAudioMetadata({ key: 'Error', tempo: 'N/A', duration: get().duration });
+        }
+        return;
+      }
+
+      const result = await response.json();
+      if (result.status === 'success' && result.results) {
+        const { key_analysis, features } = result.results;
+
+        const metadata = {
+          key: key_analysis?.key || 'Unknown',
+          tempo: features?.tempo || null, // Keep null if not available, rather than default 120
+          duration: features?.duration || get().duration, // Use analyzed duration if available
+        };
+
+        if (setAudioMetadata) { // Check if action exists
+          setAudioMetadata(metadata);
+        }
+
+        // Optionally update the main duration if the analyzed one is different and preferred
+        if (features?.duration && features.duration !== get().duration) {
+          setDuration(features.duration);
+        }
+
+        console.log('Audio analysis successful:', metadata);
+      } else {
+        console.error('Audio analysis returned non-success status or missing results:', result);
+        if (setAudioMetadata) { // Check if action exists
+          setAudioMetadata({ key: 'N/A', tempo: 'N/A', duration: get().duration });
+        }
+      }
+    } catch (error) {
+      console.error('Error during audio analysis fetch:', error);
+      if (setAudioMetadata) { // Check if action exists
+        setAudioMetadata({ key: 'Error', tempo: 'N/A', duration: get().duration });
+      }
     }
   };
 
@@ -278,13 +358,18 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
 
         <div className="player-right">
           <div className="audio-features">
+            {analysisError && (
+              <div className="feature-error" style={{ color: 'var(--color-error)', fontSize: '10px', marginBottom: '4px' }}>
+                Analysis: {analysisError}
+              </div>
+            )}
             <div className="feature" style={{ marginBottom: '4px' }}>
               <span>BPM</span>
-              <span>{bpm || 'N/A'}</span>
+              <span>{displayBpm}</span>
             </div>
             <div className="feature">
               <span>KEY</span>
-              <span>{key || 'N/A'}</span>
+              <span>{displayKey}</span>
             </div>
           </div>
             <VolumeKnob value={volume} onChange={handleVolumeChange} />
@@ -314,6 +399,11 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
             <div className="supported-formats">
               <span>Supported formats: MP3, WAV, M4A, FLAC</span>
             </div>
+            {audioMetadata?.error && !analysisError && ( // Show initial load error here if any
+              <p style={{ color: 'var(--color-error)', fontSize: '12px', marginTop: '10px' }}>
+                Previous analysis attempt failed: {audioMetadata.error}
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -25,10 +25,22 @@ const WaveformTimeline = ({
     duration,
     isPlaying,
     triggers,
-    addTrigger,
+    addTrigger, // Will be used by handleDroppedNode
     removeTrigger,
-    updateTrigger
-  } = useStore();
+    updateTrigger,
+    // For snapping to beat, we might need BPM. Assuming it will be in audioMetadata.
+    // audioMetadata, // Example: { tempo: 120, key: 'C', duration: 180 }
+  } = useStore(state => ({
+    audioBuffer: state.audioBuffer,
+    currentTime: state.currentTime,
+    duration: state.duration,
+    isPlaying: state.isPlaying,
+    triggers: state.triggers,
+    addTrigger: state.addTrigger,
+    removeTrigger: state.removeTrigger,
+    updateTrigger: state.updateTrigger,
+    // audioMetadata: state.audioMetadata, // Uncomment when audioMetadata is populated
+  }));
 
   // Format time for display
   const formatTime = (seconds) => {
@@ -199,9 +211,85 @@ const WaveformTimeline = ({
     if (!canvas || !duration) return 0;
     
     const rect = canvas.getBoundingClientRect();
-    const normalizedX = x / rect.width;
+    // Ensure x is relative to the canvas, not the viewport
+    const relativeX = x - rect.left;
+    const normalizedX = relativeX / rect.width;
     return Math.max(0, Math.min(duration, normalizedX * duration));
   }, [duration]);
+
+  const snapToNearestBeat = useCallback((time) => {
+    // Basic snapping to 0.25s intervals if BPM is not available
+    // TODO: Enhance with BPM from store if available:
+    // const bpm = audioMetadata?.tempo;
+    // if (bpm && bpm > 0) {
+    //   const beatDuration = 60 / bpm;
+    //   const quarterBeatDuration = beatDuration / 4; // Snap to 16th notes, for example
+    //   return Math.round(time / quarterBeatDuration) * quarterBeatDuration;
+    // }
+    const snapInterval = 0.25; // Snap to quarter seconds
+    return Math.round(time / snapInterval) * snapInterval;
+  }, [/* audioMetadata */]); // Add audioMetadata to dependencies if used
+
+  const graph = useStore(state => state.graph); // Get graph instance from store
+
+  const handleDroppedNode = useCallback((time, nodeData) => {
+    console.log('Node dropped at time:', time, 'with data:', nodeData);
+
+    if (!graph || !window.LiteGraph) {
+      console.error("LiteGraph instance or graph not available to create node.");
+      return;
+    }
+
+    // 1. Add a marker/visual for the dropped node
+    // The existing addTrigger action can be used.
+    // We might want to make the trigger type more specific.
+    const triggerPayload = {
+      id: crypto.randomUUID(), // Ensure a unique ID for the trigger
+      time,
+      type: 'motion-node-trigger', // Specific type for these triggers
+      data: { ...nodeData, title: `Motion: ${nodeData.motionId}` },
+      // Potentially link this trigger to the node ID once created
+    };
+    addTrigger(triggerPayload);
+    console.log("Added trigger for dropped node:", triggerPayload);
+
+    // 2. Create and configure the LiteGraph node
+    const liteNodeType = nodeData.type; // e.g., "animation/dancemotion"
+    const newNode = window.LiteGraph.createNode(liteNodeType);
+
+    if (!newNode) {
+      console.error(`Failed to create LiteGraph node of type: ${liteNodeType}`);
+      // Optionally remove the trigger if node creation fails
+      // removeTrigger(triggerPayload.id);
+      return;
+    }
+
+    // Configure the new node
+    // The DanceMotionNode's onPropertyChanged and internal logic should handle store updates for danceBlocks
+    if (nodeData.motionId) {
+      newNode.setProperty('motionId', nodeData.motionId);
+    }
+    newNode.setProperty('startTime', time);
+    // Duration will be set by DanceMotionNode based on motionId
+
+    // Position the new node in the graph (simple positioning for now)
+    // This could be improved with access to graphCanvas.ds (view transform)
+    // or by having a dedicated node placement strategy.
+    const lastNode = graph._nodes.length > 0 ? graph._nodes[graph._nodes.length - 1] : null;
+    if (lastNode && lastNode.pos) {
+      newNode.pos = [lastNode.pos[0] + lastNode.size[0] + 30, lastNode.pos[1]];
+    } else {
+      newNode.pos = [100, 100]; // Default position if no other nodes
+    }
+
+    // Add to graph
+    graph.add(newNode);
+    console.log(`Added LiteGraph node: ${newNode.title} (ID: ${newNode.id}) at [${newNode.pos[0]}, ${newNode.pos[1]}]`);
+
+    // Optional: Link trigger to node ID after node is added and has an ID
+    // updateTrigger(triggerPayload.id, { nodeId: newNode.id });
+
+  }, [graph, addTrigger /*, removeTrigger, updateTrigger */]); // Add remove/updateTrigger if used for rollback
 
   // Find trigger at position
   const findTriggerAtPosition = useCallback((x) => {
@@ -347,6 +435,26 @@ const WaveformTimeline = ({
       ref={containerRef}
       className={`waveform-timeline ${className}`}
       style={{ height: `${height}px`, width: '100%' }}
+      onDrop={(e) => {
+        e.preventDefault(); // Prevent default browser behavior for drop
+        const data = e.dataTransfer.getData('application/monograuvi-node');
+        if (data) {
+          try {
+            const nodeData = JSON.parse(data);
+            // Use e.clientX directly as pixelToTime now expects viewport-relative X
+            const time = pixelToTime(e.clientX);
+            const snappedTime = snapToNearestBeat(time);
+
+            handleDroppedNode(snappedTime, nodeData);
+          } catch (error) {
+            console.error("Failed to parse dropped node data:", error);
+          }
+        }
+      }}
+      onDragOver={(e) => {
+        e.preventDefault(); // Necessary to allow drop
+        e.dataTransfer.dropEffect = 'copy'; // Show a copy cursor
+      }}
     >
       <canvas
         ref={canvasRef}

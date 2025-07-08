@@ -20,6 +20,14 @@ const useStore = create((set, get) => ({
   playheadTime: 0, // Current time of the dance playhead in seconds
   isDancePlaying: false, // Play/pause state for the dance timeline
 
+  // Audio Analysis Metadata
+  audioMetadata: {
+    key: null,
+    tempo: null,
+    duration: null, // Can store the analyzed duration here too
+    error: null, // To store any analysis errors
+  },
+
   // Node graph actions
   setAudioContext: (context) => set({ audioContext: context }),
   setGraph: (graph) => set({ graph }),
@@ -91,6 +99,10 @@ const useStore = create((set, get) => ({
   setPlayheadTime: (time) => set({ playheadTime: time }),
 
   setIsDancePlaying: (playing) => set({ isDancePlaying: playing }),
+
+  setAudioMetadata: (metadata) => set((state) => ({
+    audioMetadata: { ...state.audioMetadata, ...metadata, error: metadata.error || null }
+  })),
 
   // Command stack for undo/redo
   undoStack: [],

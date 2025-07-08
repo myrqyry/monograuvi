@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import EnhancedNodeGraph from './components/EnhancedNodeGraph'; // Changed this line
 import NodeLibrary from './components/NodeLibrary';
+import MotionLibraryDisplay from './components/MotionLibraryDisplay'; // Added this line
 import MusicPlayer from './components/MusicPlayer';
 import ThemeSelector from './components/ThemeSelector';
 import WaveformTimeline from './components/WaveformTimeline';
@@ -55,6 +56,7 @@ function App() {
         {libraryVisible && (
           <div className="node-library-panel">
             <NodeLibrary />
+            <MotionLibraryDisplay /> {/* Added this line */}
           </div>
         )}
         <div className={`graph-area ${libraryVisible ? '' : 'full-width'}`}>
