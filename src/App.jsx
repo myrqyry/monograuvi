@@ -10,6 +10,8 @@ import WaveformTimeline from './components/WaveformTimeline';
 import VRMViewer from './components/VRMViewer'; // Import the VRMViewer
 import useStore from './store';
 import './index.css';
+import { ToastContainer } from 'react-toastify'; // Import ToastContainer
+import 'react-toastify/dist/ReactToastify.css';  // Import Toastify CSS
 
 function App() {
   const [libraryVisible, setLibraryVisible] = useState(true);
@@ -28,9 +30,10 @@ function App() {
   };
 
   return (
-    <div className={`app-container theme-${theme}`}>
-      <header className="app-header">
-        <div className="flex items-center">
+    <> {/* Use Fragment to allow ToastContainer at the same level as app-container */}
+      <div className={`app-container theme-${theme}`}>
+        <header className="app-header">
+          <div className="flex items-center">
           <button 
             onClick={initializeAudioContext}
             className="initialize-audio-btn"
@@ -76,6 +79,19 @@ function App() {
         </div>
       </div>
     </div>
+    <ToastContainer
+      position="top-right"
+      autoClose={5000}
+      hideProgressBar={false}
+      newestOnTop={false}
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      theme="colored" // Or "light", "dark" depending on your app's theme system
+    />
+    </>
   );
 }
 

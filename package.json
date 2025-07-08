@@ -18,9 +18,11 @@
   "dependencies": {
     "@pixiv/three-vrm": "^3.4.2",
     "@vitejs/plugin-react": "^4.6.0",
+    "axios": "^1.10.0",
     "litegraph.js": "^0.7.18",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "react-toastify": "^11.0.5",
     "three": "^0.178.0",
     "wavesurfer.js": "^7.9.9",
     "zustand": "^4.0.0"

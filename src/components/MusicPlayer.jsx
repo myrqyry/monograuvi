@@ -2,6 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import useStore from '../store';
 import WaveformTimeline from './WaveformTimeline';
+import axiosInstance from '../api/axiosInstance'; // Import axiosInstance
 
 function MusicPlayer({ audioRef, onAudioLoad }) {
   const audioElementRef = useRef(null);
@@ -177,52 +178,68 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     const formData = new FormData();
     formData.append('file', file);
 
+    // Get current global duration from store for fallback
+    const currentGlobalDuration = useStore.getState().duration;
+    // We need to import axiosInstance
+    // import axiosInstance from '../../api/axiosInstance'; // Path might need adjustment
+
     try {
-      const response = await fetch('http://localhost:8000/api/audio/analyze?analysis_type=full', {
-        method: 'POST',
-        body: formData,
+      // Use the new axiosInstance
+      const response = await axiosInstance.post('/audio/analyze?analysis_type=full', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        console.error('Audio analysis failed:', errorData);
-        // Potentially update UI to show error
-        if (setAudioMetadata) { // Check if action exists
-          setAudioMetadata({ key: 'Error', tempo: 'N/A', duration: get().duration });
-        }
-        return;
-      }
+      // Axios automatically throws for non-2xx responses, so error handling is primarily in the interceptor.
+      // Successful response handling:
+      const result = response.data; // Axios puts response data directly in `data`
 
-      const result = await response.json();
       if (result.status === 'success' && result.results) {
         const { key_analysis, features } = result.results;
 
         const metadata = {
           key: key_analysis?.key || 'Unknown',
-          tempo: features?.tempo || null, // Keep null if not available, rather than default 120
-          duration: features?.duration || get().duration, // Use analyzed duration if available
+          tempo: features?.tempo || null,
+          duration: features?.duration || currentGlobalDuration, // Use analyzed or fallback
+          error: null // Clear any previous error on success
         };
 
-        if (setAudioMetadata) { // Check if action exists
+        if (setAudioMetadata) {
           setAudioMetadata(metadata);
         }
 
-        // Optionally update the main duration if the analyzed one is different and preferred
-        if (features?.duration && features.duration !== get().duration) {
+        if (features?.duration && features.duration !== currentGlobalDuration) {
           setDuration(features.duration);
         }
-
-        console.log('Audio analysis successful:', metadata);
+        console.log('Audio analysis successful (axios):', metadata);
       } else {
-        console.error('Audio analysis returned non-success status or missing results:', result);
-        if (setAudioMetadata) { // Check if action exists
-          setAudioMetadata({ key: 'N/A', tempo: 'N/A', duration: get().duration });
+        // This case might be less common if backend consistently returns error statuses for failures
+        console.error('Audio analysis returned success status but missing results (axios):', result);
+        if (setAudioMetadata) {
+          setAudioMetadata({
+            key: 'N/A',
+            tempo: 'N/A',
+            duration: currentGlobalDuration,
+            error: 'Analysis response incomplete'
+          });
         }
       }
     } catch (error) {
-      console.error('Error during audio analysis fetch:', error);
-      if (setAudioMetadata) { // Check if action exists
-        setAudioMetadata({ key: 'Error', tempo: 'N/A', duration: get().duration });
+      // The axios interceptor will have already handled showing a toast and logging.
+      // This catch block is for any additional component-specific error handling, if needed.
+      console.error('Component-level error after audio analysis attempt (axios):', error.message);
+
+      // Ensure audioMetadata in store reflects an error state if not already set by interceptor
+      // This is a bit defensive, as the interceptor should handle it.
+      const currentStoreError = useStore.getState().audioMetadata.error;
+      if (setAudioMetadata && !currentStoreError) {
+         setAudioMetadata({
+            key: 'Error', // Or N/A
+            tempo: 'N/A',
+            duration: currentGlobalDuration,
+            error: error.message || 'Failed to analyze audio.',
+        });
       }
     }
   };
