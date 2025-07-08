@@ -190,10 +190,43 @@ export class ContextMenuExtensions {
 
     // General utility context menu provider
     this.registerContextMenuProvider('utility', (context) => {
-      const { node, graphCanvas, pos } = context;
+      const { node, graphCanvas, pos, selectedNodes } = context; // Added selectedNodes
       const options = [];
 
-      if (node) {
+      // Determine target nodes: right-clicked node or selected nodes
+      let targetNodes = [];
+      if (node && selectedNodes && selectedNodes.some(n => n.id === node.id)) {
+        // If right-clicked node is part of current selection, target all selected nodes
+        targetNodes = selectedNodes;
+      } else if (node) {
+        // Otherwise, target only the right-clicked node
+        targetNodes = [node];
+      }
+
+
+      if (targetNodes.length > 0) {
+        const multiNode = targetNodes.length > 1;
+        options.push({
+          content: `❌ Delete Node${multiNode ? 's' : ''}`,
+          callback: () => {
+            if (this.callbacks.onDeleteNodes) {
+              this.callbacks.onDeleteNodes(targetNodes);
+            }
+          }
+        });
+
+        options.push({
+          content: `🐑 Duplicate Node${multiNode ? 's' : ''}`,
+          callback: () => {
+            if (this.callbacks.onDuplicateNodes) {
+              this.callbacks.onDuplicateNodes(targetNodes);
+            }
+          }
+        });
+        options.push(null); // Separator
+      }
+
+      if (node) { // Options specific to a single right-clicked node
         options.push({
           content: "📋 Copy Settings",
           callback: () => this.copyNodeSettings(node)
