@@ -3,6 +3,8 @@ import { createAudioNode } from './AudioNode.js';
 import { createVisualNode } from './VisualNode.js';
 import { createControlNode } from './ControlNode.js';
 import { createOutputNode } from './OutputNode.js';
+import DanceMotionNode from './DanceMotionNode.js'; // Import DanceMotionNode
+import PlayheadNode from './PlayheadNode.js'; // Import PlayheadNode
 import { QuickConnection } from '../utils/QuickConnection';
 
 // Register all nodes
@@ -541,6 +543,12 @@ export function registerAllNodes() {
   LiteGraph.registerNodeType("math/add", MathAdd);
   LiteGraph.registerNodeType("math/multiply", MathMultiply);
   LiteGraph.registerNodeType("logic/threshold", Threshold);
+
+  // Register DanceMotionNode
+  LiteGraph.registerNodeType("animation/dancemotion", DanceMotionNode);
+
+  // Register PlayheadNode
+  LiteGraph.registerNodeType("global/playhead", PlayheadNode);
   
   LiteGraph.registerNodeType('quick-connection', QuickConnection);
 
@@ -579,7 +587,13 @@ export const nodeTypeMapping = {
   // Math nodes
   "math-add": "math/add",
   "math-multiply": "math/multiply",
-  "threshold": "logic/threshold"
+  "threshold": "logic/threshold",
+
+  // Animation nodes
+  "dance-motion": "animation/dancemotion",
+
+  // Global nodes
+  "playhead": "global/playhead"
 };
 
 // Node categories for organized display
@@ -615,6 +629,12 @@ export const nodeCategories = {
     "math-add",
     "math-multiply",
     "threshold"
+  ],
+  Animation: [ // New category for Animation
+    "dance-motion"
+  ],
+  Global: [ // New category for Global/Utility nodes
+    "playhead"
   ]
 };
 
@@ -645,5 +665,9 @@ export const nodeDescriptions = {
   
   "math-add": "Add two numbers together",
   "math-multiply": "Multiply two numbers",
-  "threshold": "Compare value against threshold with hysteresis"
+  "threshold": "Compare value against threshold with hysteresis",
+
+  "dance-motion": "Triggers a VRM dance animation with specified motion, intensity, and duration.",
+
+  "playhead": "Outputs current timeline playhead position and beat events."
 };

@@ -6,6 +6,7 @@ import NodeLibrary from './components/NodeLibrary';
 import MusicPlayer from './components/MusicPlayer';
 import ThemeSelector from './components/ThemeSelector';
 import WaveformTimeline from './components/WaveformTimeline';
+import VRMViewer from './components/VRMViewer'; // Import the VRMViewer
 import useStore from './store';
 import './index.css';
 
@@ -58,6 +59,9 @@ function App() {
         )}
         <div className={`graph-area ${libraryVisible ? '' : 'full-width'}`}>
           <EnhancedNodeGraph audioRef={audioRef} /> {/* Changed this line */}
+        </div>
+        <div className="vrm-viewer-area"> {/* Added container for VRMViewer */}
+          <VRMViewer />
         </div>
       </div>
 

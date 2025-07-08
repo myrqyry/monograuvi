@@ -67,6 +67,42 @@ const useStore = create((set, get) => ({
   })),
   
   clearTriggers: () => set({ triggers: [] }),
+
+  // Command stack for undo/redo
+  undoStack: [],
+  redoStack: [],
+
+  executeCommand: (command) => {
+    command.execute();
+    set((state) => ({
+      undoStack: [...state.undoStack, command],
+      redoStack: [], // Clear redo stack when a new command is executed
+    }));
+  },
+
+  undoCommand: () => {
+    const { undoStack, redoStack } = get();
+    if (undoStack.length > 0) {
+      const command = undoStack[undoStack.length - 1];
+      command.undo();
+      set({
+        undoStack: undoStack.slice(0, -1),
+        redoStack: [command, ...redoStack],
+      });
+    }
+  },
+
+  redoCommand: () => {
+    const { undoStack, redoStack } = get();
+    if (redoStack.length > 0) {
+      const command = redoStack[0];
+      command.execute();
+      set({
+        undoStack: [...undoStack, command],
+        redoStack: redoStack.slice(1),
+      });
+    }
+  },
 }));
 
 export default useStore;
