@@ -9,7 +9,7 @@ class ControlNode extends BaseNode {
         });
         
         this.controlType = type;
-        this.internalState = null;
+        this.internalState = {};
         this.lastUpdateTime = performance.now();
         
         this.setupControlNode();
