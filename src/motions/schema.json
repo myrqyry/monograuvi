@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MotionClip",
+  "description": "Schema for a dance motion clip definition",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the motion clip"
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the motion clip"
+    },
+    "url": {
+      "type": "string",
+      "description": "URL path to the VMD motion file"
+    },
+    "duration": {
+      "type": "number",
+      "description": "Optional duration of the motion in seconds. Can be inferred from VMD if not provided."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for categorizing the motion"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "url"
+  ]
+}

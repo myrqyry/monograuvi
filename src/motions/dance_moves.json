@@ -1,0 +1,23 @@
+[
+  {
+    "id": "dance-001",
+    "name": "Basic Groove",
+    "url": "/motions/basic_groove.vmd",
+    "duration": 5.0,
+    "tags": ["beginner", "groove"]
+  },
+  {
+    "id": "dance-002",
+    "name": "Hip Hop Swag",
+    "url": "/motions/hip_hop_swag.vmd",
+    "duration": 8.2,
+    "tags": ["intermediate", "hiphop"]
+  },
+  {
+    "id": "dance-003",
+    "name": "Smooth Wave",
+    "url": "/motions/smooth_wave.vmd",
+    "duration": 6.5,
+    "tags": ["advanced", "wave", "fluid"]
+  }
+]

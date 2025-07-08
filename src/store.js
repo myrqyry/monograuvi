@@ -10,11 +10,16 @@ const useStore = create((set, get) => ({
   
   // Audio and timeline state
   audioBuffer: null,
-  currentTime: 0,
-  duration: 0,
-  isPlaying: false,
+  currentTime: 0, // Existing: likely for audio playback
+  duration: 0,    // Existing: likely for audio duration
+  isPlaying: false, // Existing: likely for audio playback
   triggers: [],
   
+  // Dance Timeline State
+  danceBlocks: [], // Array of DanceBlock objects { id, motionId, motionUrl, startTime, duration }
+  playheadTime: 0, // Current time of the dance playhead in seconds
+  isDancePlaying: false, // Play/pause state for the dance timeline
+
   // Node graph actions
   setAudioContext: (context) => set({ audioContext: context }),
   setGraph: (graph) => set({ graph }),
@@ -67,6 +72,25 @@ const useStore = create((set, get) => ({
   })),
   
   clearTriggers: () => set({ triggers: [] }),
+
+  // Dance Timeline Actions
+  addDanceBlock: (block) => set((state) => ({
+    danceBlocks: [...state.danceBlocks, block]
+  })),
+
+  removeDanceBlock: (blockId) => set((state) => ({
+    danceBlocks: state.danceBlocks.filter(b => b.id !== blockId)
+  })),
+
+  updateDanceBlock: (blockId, updates) => set((state) => ({
+    danceBlocks: state.danceBlocks.map(b =>
+      b.id === blockId ? { ...b, ...updates } : b
+    )
+  })),
+
+  setPlayheadTime: (time) => set({ playheadTime: time }),
+
+  setIsDancePlaying: (playing) => set({ isDancePlaying: playing }),
 
   // Command stack for undo/redo
   undoStack: [],
