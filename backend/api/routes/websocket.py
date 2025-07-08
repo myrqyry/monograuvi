@@ -2,7 +2,8 @@
 WebSocket routes for real-time communication.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from typing import Dict, List
 import json
 import logging
@@ -231,7 +232,13 @@ async def broadcast_system_notification(notification: str):
     await manager.broadcast(message)
 
 # Endpoint to get connection statistics
-@router.get("/stats")
+security = HTTPBasic()
+
+def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
+    if credentials.username != settings.ADMIN_USERNAME or credentials.password != settings.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+@router.get("/stats", dependencies=[Depends(authenticate)])
 async def get_websocket_stats():
     """Get WebSocket connection statistics. Requires authentication."""
     return {

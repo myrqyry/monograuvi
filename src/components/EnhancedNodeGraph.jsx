@@ -89,6 +89,20 @@ function EnhancedNodeGraph({ audioRef }) {
           graph.add(liteNode);
         }
       });
+
+      // Dynamically synchronize LiteGraph nodes with Zustand state
+      graph.onNodeAdded = (node) => {
+        addNode({
+          id: node.id,
+          type: node.type,
+          position: node.pos
+        });
+      };
+
+      graph.onNodeRemoved = (node) => {
+        console.log(`Node removed: ${node.id}`);
+        // Add logic to remove node from Zustand state if needed
+      };
       
       // Configure canvas settings
       graphCanvas.background_image = null;
@@ -108,7 +122,7 @@ function EnhancedNodeGraph({ audioRef }) {
       graph.start();
     };
 
-    initializeGraph();
+    initializeEnhancedGraph();
     
     const checkInterval = setInterval(() => {
       if (window.LiteGraph && window.LGraphCanvas) {

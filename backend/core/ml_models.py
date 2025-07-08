@@ -101,14 +101,11 @@ class MLModelManager:
                 model = AudioClassifier()
                 model.to(self.device)
                 model.eval()
-                
                 # Save for future use
                 model_path.parent.mkdir(parents=True, exist_ok=True)
                 torch.save(model.state_dict(), model_path)
                 logger.info("Created new audio classifier")
-            
-            self.models['audio_classifier'] = model
-            self._evict_cache_if_needed()
+            return model
         except Exception as e:
             logger.error(f"Error loading audio classifier: {e}")
             raise
@@ -123,14 +120,11 @@ class MLModelManager:
             else:
                 # Create new model
                 model = KMeans(n_clusters=8, random_state=42)
-                
                 # Save for future use
                 model_path.parent.mkdir(parents=True, exist_ok=True)
                 joblib.dump(model, model_path)
                 logger.info("Created new clustering model")
-            
-            self.models['audio_clustering'] = model
-            self._evict_cache_if_needed()
+            return model
         except Exception as e:
             logger.error(f"Error loading clustering model: {e}")
             raise
@@ -145,14 +139,11 @@ class MLModelManager:
             else:
                 # Create new scaler
                 scaler = StandardScaler()
-                
                 # Save for future use
                 scaler_path.parent.mkdir(parents=True, exist_ok=True)
                 joblib.dump(scaler, scaler_path)
                 logger.info("Created new feature scaler")
-            
-            self.models['feature_scaler'] = scaler
-            self._evict_cache_if_needed()
+            return scaler
         except Exception as e:
             logger.error(f"Error loading feature scaler: {e}")
             raise
@@ -162,14 +153,9 @@ class MLModelManager:
         model_path = settings.ML_CACHE_DIR / "audio_classifier.pth"
         
         try:
-            await asyncio.to_thread(self._load_or_create_audio_classifier, model_path)
+            model = await asyncio.to_thread(self._load_or_create_audio_classifier, model_path)
             self.models['audio_classifier'] = model
             self._evict_cache_if_needed()
-            
-            self.models['audio_classifier'] = model
-            self._evict_cache_if_needed()
-            self._evict_cache_if_needed()
-            
         except Exception as e:
             logger.error(f"Error loading audio classifier: {e}")
             raise
@@ -179,14 +165,9 @@ class MLModelManager:
         model_path = settings.ML_CACHE_DIR / "audio_clustering.pkl"
         
         try:
-            await asyncio.to_thread(self._load_or_create_clustering_model, model_path)
+            model = await asyncio.to_thread(self._load_or_create_clustering_model, model_path)
             self.models['audio_clustering'] = model
             self._evict_cache_if_needed()
-            
-            self.models['audio_clustering'] = model
-            self._evict_cache_if_needed()
-            self._evict_cache_if_needed()
-            
         except Exception as e:
             logger.error(f"Error loading clustering model: {e}")
             raise
@@ -196,14 +177,9 @@ class MLModelManager:
         scaler_path = settings.ML_CACHE_DIR / "feature_scaler.pkl"
         
         try:
-            await asyncio.to_thread(self._load_or_create_feature_scaler, scaler_path)
+            scaler = await asyncio.to_thread(self._load_or_create_feature_scaler, scaler_path)
             self.models['feature_scaler'] = scaler
             self._evict_cache_if_needed()
-            
-            self.models['feature_scaler'] = scaler
-            self._evict_cache_if_needed()
-            self._evict_cache_if_needed()
-            
         except Exception as e:
             logger.error(f"Error loading feature scaler: {e}")
             raise
@@ -251,8 +227,7 @@ class MLModelManager:
             }
             
             logger.info(f"Audio genre classified: {results['top_genre']} ({results['confidence']:.2f})")
-            return results
-            
+            return model
         except Exception as e:
             logger.error(f"Error classifying audio genre: {e}")
             raise
@@ -263,7 +238,6 @@ class MLModelManager:
         energy = np.mean(spectral_rolloff) / 8000.0  # Normalize
         rhythmic_complexity = np.std(zero_crossing_rate)
         tempo_factor = min(tempo / 120.0, 2.0)  # Normalize around 120 BPM
-        
         # Simple mood classification based on features
         mood_scores = {
             'energetic': (energy * 0.4 + tempo_factor * 0.6),
@@ -275,7 +249,7 @@ class MLModelManager:
             'excited': energy * 0.3 + tempo_factor * 0.4 + rhythmic_complexity * 0.3,
             'melancholic': (1 - brightness) * 0.4 + (1 - tempo_factor) * 0.4 + (1 - energy) * 0.2
         }
-        return mood_scores
+        return mood_scores, brightness, energy, rhythmic_complexity, tempo_factor
 
     async def analyze_audio_mood(self, audio_features: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze audio mood based on multiple features."""
@@ -285,17 +259,14 @@ class MLModelManager:
             spectral_rolloff = np.array(audio_features.get('spectral_rolloff', []))
             zero_crossing_rate = np.array(audio_features.get('zero_crossing_rate', []))
             tempo = audio_features.get('tempo', 120)
-            
             # Calculate mood indicators
-            mood_scores = await asyncio.to_thread(self._calculate_mood_scores, spectral_centroid, spectral_rolloff, zero_crossing_rate, tempo)
-            
+            mood_scores, brightness, energy, rhythmic_complexity, tempo_factor = await asyncio.to_thread(
+                self._calculate_mood_scores, spectral_centroid, spectral_rolloff, zero_crossing_rate, tempo)
             # Normalize scores
             total_score = sum(mood_scores.values())
             normalized_scores = {mood: score / total_score for mood, score in mood_scores.items()}
-            
             # Get top moods
             sorted_moods = sorted(normalized_scores.items(), key=lambda x: x[1], reverse=True)
-            
             results = {
                 'mood_scores': normalized_scores,
                 'top_mood': sorted_moods[0][0],
@@ -311,10 +282,8 @@ class MLModelManager:
                     'tempo_factor': float(tempo_factor)
                 }
             }
-            
             logger.info(f"Audio mood analyzed: {results['top_mood']} ({results['confidence']:.2f})")
             return results
-            
         except Exception as e:
             logger.error(f"Error analyzing audio mood: {e}")
             raise
@@ -420,8 +389,6 @@ class MLModelManager:
             },
             'effects': {
                 'blur_intensity': float(blur_intensity),
-                'saturation': float(saturation),
-                'contrast': float(contrast),
                 'glow': float(brightness)
             },
             'animation': {
@@ -463,16 +430,14 @@ class MLModelManager:
 
     def _get_model_details(self) -> Dict[str, Any]:
         """Get details of all loaded models."""
-        details = {}
-        for model_name in self.models:
-            model = self.models[model_name]
-            if hasattr(model, 'parameters'):
-                # PyTorch model
-                param_count = sum(p.numel() for p in model.parameters())
-                details[f'{model_name}_params'] = param_count
-            else:
-                # Sklearn model
-                details[f'{model_name}_type'] = type(model).__name__
+        model = self.models[model_name]
+        if hasattr(model, 'parameters'):
+            # PyTorch model
+            param_count = sum(p.numel() for p in model.parameters())
+            details[f'{model_name}_params'] = param_count
+        else:
+            # Sklearn model
+            details[f'{model_name}_type'] = type(model).__name__
         return details
 
     async def get_status(self) -> Dict[str, Any]:

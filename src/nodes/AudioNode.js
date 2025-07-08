@@ -10,7 +10,7 @@ class AudioNode extends BaseNode {
         
         this.audioType = type;
         this.audioData = null;
-        this.audioContext = null;
+        this.audioContext = this.audioContext || new (window.AudioContext || window.webkitAudioContext)();
         this.analyser = null;
         this.frequencyData = null;
         this.timeData = null;

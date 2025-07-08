@@ -5,7 +5,7 @@ const VisualElements = ({ elements, onSelect }) => {
         <div className="visual-elements">
             <h2>Select Visual Elements</h2>
             <div className="elements-list">
-                {elements.map((element) => (
+                {(elements || []).map((element) => (
                     <div 
                         key={element.id} 
                         className="element-item" 
