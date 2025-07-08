@@ -6,6 +6,7 @@ import { registerAllNodes, nodeTypeMapping, nodeCategories, nodeDescriptions } f
 import useStore from '../store';
 import { QuickConnection } from '../utils/QuickConnection';
 import { EnhancedWidgets } from '../utils/EnhancedWidgets';
+import { AddNodeCommand, RemoveNodeCommand, MoveNodeCommand } from '../utils/commands';
 import { ContextMenuExtensions } from '../utils/ContextMenuExtensions';
 import { NodeGroupingHelpers } from '../utils/NodeGroupingHelpers';
 import { ThemeManager } from '../utils/ThemeManager';
@@ -27,6 +28,12 @@ function EnhancedNodeGraph({ audioRef }) {
   const nodes = useStore(state => state.nodes);
   const setGraph = useStore(state => state.setGraph);
   const audioContext = useStore(state => state.audioContext);
+  const removeNode = useStore(state => state.removeNode);
+  const updateNodePositionInStore = useStore(state => state.updateNodePosition); // For MoveNodeCommand
+
+  // Undo/Redo stacks
+  const undoStack = useRef([]);
+  const redoStack = useRef([]);
   
   // Enhanced utilities
   const enhancedWidgets = useRef(null);
@@ -34,7 +41,99 @@ function EnhancedNodeGraph({ audioRef }) {
   const nodeGroupingHelpers = useRef(null);
   const themeManager = useRef(null);
   const searchEnhancements = useRef(null);
+  const internalClipboardRef = useRef([]); // For copy-paste
   
+  // Command execution and Undo/Redo logic
+  const executeCommand = (command) => {
+    command.execute();
+    undoStack.current.push(command);
+    redoStack.current = []; // Clear redo stack whenever a new command is executed
+    // TODO: Update UI to enable/disable undo/redo buttons if they exist
+    console.log("Command executed, undoStack:", undoStack.current.length, "redoStack:", redoStack.current.length);
+  };
+
+  const handleUndo = () => {
+    if (undoStack.current.length > 0) {
+      const command = undoStack.current.pop();
+      command.undo();
+      redoStack.current.push(command);
+      // TODO: Update UI
+      console.log("Undo performed, undoStack:", undoStack.current.length, "redoStack:", redoStack.current.length);
+      graphCanvasRef.current.setDirty(true, true); // Redraw graph
+    } else {
+      console.log("Undo stack empty.");
+    }
+  };
+
+  const handleRedo = () => {
+    if (redoStack.current.length > 0) {
+      const command = redoStack.current.pop();
+      command.execute(); // Or command.redo() if defined separately
+      undoStack.current.push(command);
+      // TODO: Update UI
+      console.log("Redo performed, undoStack:", undoStack.current.length, "redoStack:", redoStack.current.length);
+      graphCanvasRef.current.setDirty(true, true); // Redraw graph
+    } else {
+      console.log("Redo stack empty.");
+    }
+  };
+
+  // Node operation handlers for context menu
+  const handleDeleteNodes = (nodesToDelete) => {
+    if (!graphRef.current || !nodesToDelete || nodesToDelete.length === 0) return;
+
+    const nodesDataToSave = nodesToDelete.map(node => {
+      const liteGraphNode = graphRef.current.getNodeById(node.id);
+      if (!liteGraphNode) return null; // Should not happen if node.id is from a valid node
+      return {
+        id: liteGraphNode.id,
+        type: liteGraphNode.type,
+        pos: [...liteGraphNode.pos],
+        properties: liteGraphNode.properties ? JSON.parse(JSON.stringify(liteGraphNode.properties)) : {},
+        size: liteGraphNode.size ? [...liteGraphNode.size] : undefined,
+        // Later: capture connections if they are to be restored
+      };
+    }).filter(Boolean); // Filter out any nulls if a node wasn't found
+
+    if (nodesDataToSave.length === 0) return;
+
+    const command = new RemoveNodeCommand(graphRef.current, addNode, removeNode, nodesDataToSave);
+    executeCommand(command);
+
+    setSelectedNodes([]); // Clear local selection state after command execution
+    graphCanvasRef.current.setDirty(true, true); // Redraw
+    console.log('DeleteNode command created for:', nodesToDelete.map(n => n.id));
+  };
+
+  const handleDuplicateNodes = (nodesToDuplicate) => {
+    if (!graphRef.current || !nodesToDuplicate || nodesToDuplicate.length === 0) return;
+    if (!graphRef.current || !nodesToDuplicate || nodesToDuplicate.length === 0) return;
+
+    const duplicateCommands = nodesToDuplicate.map(nodeToDuplicate => {
+      const originalNode = graphRef.current.getNodeById(nodeToDuplicate.id);
+      if (!originalNode) {
+        console.warn(`Original node with id ${nodeToDuplicate.id} not found for duplication command.`);
+        return null;
+      }
+
+      const nodeDataForCommand = {
+        type: originalNode.type,
+        pos: [originalNode.pos[0] + 30, originalNode.pos[1] + 30], // Offset
+        properties: originalNode.properties ? JSON.parse(JSON.stringify(originalNode.properties)) : {},
+        size: originalNode.size ? [...originalNode.size] : undefined,
+      };
+      return new AddNodeCommand(graphRef.current, addNode, removeNode, nodeDataForCommand);
+    }).filter(Boolean);
+
+    if (duplicateCommands.length > 0) {
+      // If we want one undo for all duplicated nodes, we'd need a BatchCommand.
+      // For now, each duplicated node will be a separate undo step.
+      duplicateCommands.forEach(cmd => executeCommand(cmd));
+      graphCanvasRef.current.setDirty(true, true); // Redraw
+      console.log('Duplicated nodes using AddNodeCommand via context menu:', nodesToDuplicate.map(n => n.id));
+    }
+  };
+
   // Initialize enhanced node graph
   useEffect(() => {
     const initializeEnhancedGraph = () => {
@@ -91,17 +190,57 @@ function EnhancedNodeGraph({ audioRef }) {
       });
 
       // Dynamically synchronize LiteGraph nodes with Zustand state
-      graph.onNodeAdded = (node) => {
-        addNode({
-          id: node.id,
-          type: node.type,
-          position: node.pos
-        });
+      // graph.onNodeAdded is already handled by AddNodeCommand's execute method
+      // graph.onNodeRemoved is already handled by RemoveNodeCommand's execute method
+
+      // Store initial positions of nodes for move tracking
+      const nodeInitialPositionsOnDrag = new Map();
+
+      // Override or hook into mouse down processing to capture initial positions
+      // This is a bit intrusive but necessary for accurate oldPos for MoveCommand.
+      const originalProcessMouseDown = graphCanvas.processMouseDown;
+      graphCanvas.processMouseDown = function(e) {
+        const result = originalProcessMouseDown.apply(this, arguments);
+        if (this.dragging_node) {
+          nodeInitialPositionsOnDrag.clear(); // Clear previous drag data
+          if (this.selected_nodes && Object.keys(this.selected_nodes).length > 0) {
+            for (const nodeId in this.selected_nodes) {
+              const node = this.selected_nodes[nodeId];
+              nodeInitialPositionsOnDrag.set(node.id, [...node.pos]);
+            }
+          } else if (this.dragging_node) { // Single node drag
+            nodeInitialPositionsOnDrag.set(this.dragging_node.id, [...this.dragging_node.pos]);
+          }
+        }
+        return result;
       };
 
-      graph.onNodeRemoved = (node) => {
-        console.log(`Node removed: ${node.id}`);
-        // Add logic to remove node from Zustand state if needed
+      graphCanvas.onNodeMoved = function(movedNodeInstance) { // 'this' is LGraphCanvas
+        // Note: 'movedNodeInstance' is the single node that LiteGraph reports as moved.
+        // If multiple nodes were selected and moved, they all moved by the same delta.
+        const movedNodesData = [];
+
+        if (nodeInitialPositionsOnDrag.size > 0) {
+          // Iterate over the nodes whose positions were captured at drag start
+          nodeInitialPositionsOnDrag.forEach((oldPos, nodeId) => {
+            const node = this.graph.getNodeById(nodeId); // 'this.graph' is LGraph instance
+            if (node && (node.pos[0] !== oldPos[0] || node.pos[1] !== oldPos[1])) {
+              movedNodesData.push({
+                nodeId: node.id,
+                oldPos: oldPos,
+                newPos: [...node.pos],
+              });
+            }
+          });
+
+          if (movedNodesData.length > 0) {
+            // 'executeCommand', 'graphRef', 'updateNodePositionInStore' are from the outer scope of EnhancedNodeGraph
+            // This closure should work as this function is defined within useEffect.
+            const command = new MoveNodeCommand(graphRef.current, updateNodePositionInStore, movedNodesData);
+            executeCommand(command);
+          }
+          nodeInitialPositionsOnDrag.clear(); // Important to clear after processing a move
+        }
       };
       
       // Configure canvas settings
@@ -111,6 +250,7 @@ function EnhancedNodeGraph({ audioRef }) {
       graphCanvas.allow_dragcanvas = true;
       graphCanvas.allow_dragnodes = true;
       graphCanvas.render_connections_shadows = false;
+      graphCanvas.render_grid = true; // Show visual grid
       
       // Enhanced touch/gesture support
       setupTouchGestures(graphCanvas);
@@ -136,8 +276,106 @@ function EnhancedNodeGraph({ audioRef }) {
       if (graphRef.current) {
         graphRef.current.stop();
       }
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  // Keyboard shortcuts handler
+  const handleKeyDown = (event) => {
+    if (!graphRef.current || !graphCanvasRef.current) return;
+
+    // Don't interfere if an input field is focused
+    const activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+      return;
+    }
+
+    const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+
+    if (isCtrlOrMeta && event.key === 'z') { // Undo
+      event.preventDefault();
+      handleUndo();
+    } else if (isCtrlOrMeta && event.key === 'y') { // Redo (Ctrl+Y)
+      event.preventDefault();
+      handleRedo();
+    } else if (isCtrlOrMeta && event.shiftKey && event.key === 'Z') { // Redo (Ctrl+Shift+Z)
+      event.preventDefault();
+      handleRedo();
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      const selectedLiteGraphNodes = Object.values(graphRef.current.selected_nodes || {});
+      if (selectedLiteGraphNodes.length > 0) {
+        const nodesDataToSave = selectedLiteGraphNodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          pos: [...node.pos],
+          properties: node.properties ? JSON.parse(JSON.stringify(node.properties)) : {},
+          size: node.size ? [...node.size] : undefined,
+        })).filter(Boolean);
+
+        if (nodesDataToSave.length > 0) {
+          const command = new RemoveNodeCommand(graphRef.current, addNode, removeNode, nodesDataToSave);
+          executeCommand(command);
+          setSelectedNodes([]);
+          graphCanvasRef.current.setDirty(true,true);
+          console.log('DeleteNode command created via keyboard for:', nodesDataToSave.map(n => n.id));
+        }
+      }
+    } else if (isCtrlOrMeta && event.key === 'c') { // Copy
+      const selectedLiteGraphNodes = Object.values(graphRef.current.selected_nodes || {});
+      if (selectedLiteGraphNodes.length > 0) {
+        internalClipboardRef.current = selectedLiteGraphNodes.map(node => {
+          // Basic serialization - properties might need deep cloning if they are objects/arrays
+          const serializedProperties = node.properties ? JSON.parse(JSON.stringify(node.properties)) : {};
+          return {
+            type: node.type,
+            pos: [node.pos[0] + 20, node.pos[1] + 20], // Offset for pasted node
+            properties: serializedProperties,
+            size: node.size ? [...node.size] : undefined, // Clone size array
+            inputs: node.inputs ? JSON.parse(JSON.stringify(node.inputs)) : undefined,
+            outputs: node.outputs ? JSON.parse(JSON.stringify(node.outputs)) : undefined,
+            // Note: Connections are not copied in this basic implementation
+          };
+        });
+        console.log('Nodes copied to internal clipboard:', internalClipboardRef.current);
+      }
+    } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') { // Paste
+      if (internalClipboardRef.current && internalClipboardRef.current.length > 0) {
+        if (internalClipboardRef.current && internalClipboardRef.current.length > 0) {
+          // Create a list of commands for all nodes to be pasted
+          const pasteCommands = internalClipboardRef.current.map(serializedNode => {
+            // Data for AddNodeCommand: { type, pos, properties, size }
+            // ID will be generated by LiteGraph and captured by the command.
+            const nodeDataForCommand = {
+              type: serializedNode.type,
+              pos: [...serializedNode.pos], // Use the pre-offsetted position
+              properties: serializedNode.properties ? JSON.parse(JSON.stringify(serializedNode.properties)) : {},
+              size: serializedNode.size ? [...serializedNode.size] : undefined,
+            };
+            // Offset for the next potential pasted node in the same batch for the clipboard data
+            serializedNode.pos[0] += 20;
+            serializedNode.pos[1] += 20;
+            return new AddNodeCommand(graphRef.current, addNode, removeNode, nodeDataForCommand);
+          });
+
+          // Execute all paste commands
+          // If we want one undo for all pasted nodes, we'd need a BatchCommand.
+          // For now, each pasted node will be a separate undo step.
+          pasteCommands.forEach(cmd => executeCommand(cmd));
+
+          graphCanvasRef.current.setDirty(true,true); // Redraw
+          console.log('Pasted nodes using AddNodeCommand from internal clipboard');
+        }
+      }
+    }
+  };
+
+  // Add and remove keyboard listener
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [removeNode, addNode]); // Ensure handleKeyDown has the latest store actions
 
   // Setup enhanced features
   const setupEnhancedFeatures = (graph, graphCanvas) => {
@@ -156,7 +394,9 @@ function EnhancedNodeGraph({ audioRef }) {
       },
       onUnGroupNodes: (group) => {
         nodeGroupingHelpers.current.unGroupNodes(group, graph);
-      }
+      },
+      onDeleteNodes: handleDeleteNodes, // Added callback
+      onDuplicateNodes: handleDuplicateNodes // Added callback
     });
     
     // Node selection tracking

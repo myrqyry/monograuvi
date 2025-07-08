@@ -1,7 +1,7 @@
 // src/App.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import NodeGraph from './components/NodeGraph';
+import EnhancedNodeGraph from './components/EnhancedNodeGraph'; // Changed this line
 import NodeLibrary from './components/NodeLibrary';
 import MusicPlayer from './components/MusicPlayer';
 import ThemeSelector from './components/ThemeSelector';
@@ -57,7 +57,7 @@ function App() {
           </div>
         )}
         <div className={`graph-area ${libraryVisible ? '' : 'full-width'}`}>
-          <NodeGraph audioRef={audioRef} />
+          <EnhancedNodeGraph audioRef={audioRef} /> {/* Changed this line */}
         </div>
       </div>
 
