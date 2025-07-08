@@ -178,8 +178,8 @@ const WaveformTimeline = ({
     const devicePixelRatio = window.devicePixelRatio || 1;
     canvas.width = rect.width * devicePixelRatio;
     canvas.height = rect.height * devicePixelRatio;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(devicePixelRatio, devicePixelRatio);
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     
     // Clear canvas
     ctx.clearRect(0, 0, rect.width, rect.height);
@@ -199,7 +199,7 @@ const WaveformTimeline = ({
     if (!canvas || !duration) return 0;
     
     const rect = canvas.getBoundingClientRect();
-    const normalizedX = x / canvas.width * window.devicePixelRatio;
+    const normalizedX = x / rect.width;
     return Math.max(0, Math.min(duration, normalizedX * duration));
   }, [duration]);
 

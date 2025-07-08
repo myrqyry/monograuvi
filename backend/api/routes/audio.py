@@ -35,20 +35,14 @@ def set_global_instances(audio_processor: AudioProcessor, ml_manager: MLModelMan
 def get_audio_processor() -> AudioProcessor:
     """Get cached AudioProcessor instance."""
     if _audio_processor is None:
-        # Fallback to creating new instance if not set by main.py
-        logger.info("Creating new AudioProcessor instance (fallback)")
-        return AudioProcessor()
-    logger.debug("Using pre-initialized AudioProcessor instance")
+        raise RuntimeError("AudioProcessor not initialized")
     return _audio_processor
 
 @lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
     """Get cached MLModelManager instance."""
     if _ml_manager is None:
-        # Fallback to creating new instance if not set by main.py
-        logger.info("Creating new MLModelManager instance (fallback)")
-        return MLModelManager()
-    logger.debug("Using pre-initialized MLModelManager instance")
+        raise RuntimeError("MLModelManager not initialized")
     return _ml_manager
 
 async def validate_audio_file(file: UploadFile) -> str:
@@ -249,65 +243,59 @@ async def extract_audio_features(
     audio_processor: AudioProcessor = Depends(get_audio_processor)
 ):
     """Extract specific audio features."""
+    tmp_file_path = None
     try:
         # Validate file using robust validation
-        content = await validate_audio_file(file)
+        tmp_file_path = await validate_audio_file(file)
         
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
+        # Load audio
+        audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
         
-        try:
-            # Load audio
-            audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
-            
-            # Extract requested features
-            features = {}
-            
-            advanced_features = None
-            if feature_types in ["all", "spectral", "mfcc", "chroma"]:
-                advanced_features = await audio_processor.extract_advanced_features(audio_data)
+        # Extract requested features
+        features = {}
+        
+        advanced_features = None
+        if feature_types in ["all", "spectral", "mfcc", "chroma"]:
+            advanced_features = await audio_processor.extract_advanced_features(audio_data)
 
-            if feature_types in ["all", "spectral"] and advanced_features:
-                features.update({
-                    "spectral_centroid": advanced_features.get("spectral_centroid"),
-                    "spectral_rolloff": advanced_features.get("spectral_rolloff"),
-                    "spectral_bandwidth": advanced_features.get("spectral_bandwidth"),
-                    "zero_crossing_rate": advanced_features.get("zero_crossing_rate")
-                })
-
-            if feature_types in ["all", "mfcc"] and advanced_features:
-                features["mfcc"] = advanced_features.get("mfcc")
-
-            if feature_types in ["all", "chroma"] and advanced_features:
-                features["chroma"] = advanced_features.get("chroma")
-            
-            if feature_types in ["all", "rhythm"]:
-                rhythm_features = await audio_processor.extract_rhythm_features(audio_data)
-                features["rhythm"] = rhythm_features
-            
-            return JSONResponse({
-                "status": "success",
-                "feature_types": feature_types,
-                "features": features,
-                "metadata": {
-                    "sample_rate": sample_rate,
-                    "duration": len(audio_data) / sample_rate,
-                    "filename": file.filename
-                }
+        if feature_types in ["all", "spectral"] and advanced_features:
+            features.update({
+                "spectral_centroid": advanced_features.get("spectral_centroid"),
+                "spectral_rolloff": advanced_features.get("spectral_rolloff"),
+                "spectral_bandwidth": advanced_features.get("spectral_bandwidth"),
+                "zero_crossing_rate": advanced_features.get("zero_crossing_rate")
             })
+
+        if feature_types in ["all", "mfcc"] and advanced_features:
+            features["mfcc"] = advanced_features.get("mfcc")
+
+        if feature_types in ["all", "chroma"] and advanced_features:
+            features["chroma"] = advanced_features.get("chroma")
+        
+        if feature_types in ["all", "rhythm"]:
+            rhythm_features = await audio_processor.extract_rhythm_features(audio_data)
+            features["rhythm"] = rhythm_features
+        
+        return JSONResponse({
+            "status": "success",
+            "feature_types": feature_types,
+            "features": features,
+            "metadata": {
+                "sample_rate": sample_rate,
+                "duration": len(audio_data) / sample_rate,
+                "filename": file.filename
+            }
+        })
             
-        finally:
-            # Cleanup temporary file
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
-                
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error extracting audio features: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup temporary file
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
 
 @router.get("/health")
 async def audio_health_check(

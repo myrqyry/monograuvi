@@ -49,18 +49,12 @@ class VisualParametersRequest(BaseModel):
     mood_analysis: MoodAnalysis
 
 # Dependency injection with caching
-from threading import Lock
-
-_ml_manager_lock = Lock()
-
 @lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
     """Get cached MLModelManager instance."""
-    with _ml_manager_lock:
-        if _ml_manager is not None:
-            return _ml_manager
-        # Fallback to creating a cached instance if not set by main.py
-        return MLModelManager()
+    if _ml_manager is None:
+        raise RuntimeError("MLModelManager not initialized")
+    return _ml_manager
 
 @router.post("/classify-genre")
 async def classify_genre(
@@ -79,7 +73,7 @@ async def classify_genre(
         
     except Exception as e:
         logger.exception(f"Error classifying genre: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error classifying genre")
 
 @router.post("/analyze-mood")
 async def analyze_mood(
@@ -97,7 +91,7 @@ async def analyze_mood(
         
     except Exception as e:
         logger.exception(f"Error analyzing mood: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error analyzing mood")
 
 @router.post("/cluster-segments")
 async def cluster_segments(
@@ -118,7 +112,7 @@ async def cluster_segments(
         
     except Exception as e:
         logger.exception(f"Error clustering segments: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error clustering segments")
 
 @router.post("/generate-visual-params")
 async def generate_visual_parameters(
@@ -138,7 +132,7 @@ async def generate_visual_parameters(
         
     except Exception as e:
         logger.exception(f"Error generating visual parameters: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error generating visual parameters")
 
 @router.get("/models/status")
 async def get_models_status(
@@ -155,7 +149,7 @@ async def get_models_status(
         
     except Exception as e:
         logger.exception(f"Error getting models status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error getting models status")
 
 @router.get("/models/genres")
 async def get_genre_labels(
@@ -170,7 +164,7 @@ async def get_genre_labels(
         })
     except Exception as e:
         logger.exception(f"Error retrieving genres: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error retrieving genres")
 
 @router.get("/models/moods")
 async def get_mood_labels(
@@ -185,7 +179,7 @@ async def get_mood_labels(
         })
     except Exception as e:
         logger.exception(f"Error retrieving moods: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error retrieving moods")
 
 @router.get("/health")
 async def ml_health_check(

@@ -18,8 +18,10 @@ export class QuickConnection {
     this.doNotAcceptType = /^\*$/;
     this.boxAlpha = 0.7;
     this.boxBackground = '#000';
-    this.highlightedNodes = [];
+    this.highlightedNodes = new Set();
     this.originalNodeColors = new Map();
+    this.highlightColor = '#6a6';
+    this.snappingThreshold = 50;
   }
 
   initListeners(canvas) {
@@ -111,7 +113,6 @@ export class QuickConnection {
     }
 
     this.insideConnection = null;
-    this.acceptingNodes = null; // Cache for accepting nodes
 
     const connectionInfo = this.getCurrentConnection();
 
@@ -136,7 +137,6 @@ export class QuickConnection {
 
       // Use precomputed accepting nodes
       if (!this.acceptingNodes) {
-        console.warn('Accepting nodes cache is empty. Ensure onMouseDown is triggered.');
         return;
       }
 
@@ -196,46 +196,54 @@ export class QuickConnection {
       return;
     }
 
-    const newHighlightedNodes = [];
-    this.acceptingNodes.forEach((acceptingNode) => {
-      if (!this.originalNodeColors.has(acceptingNode.node.id)) {
-        this.originalNodeColors.set(acceptingNode.node.id, acceptingNode.node.bgcolor);
-      }
-      acceptingNode.node.bgcolor = '#6a6'; // Highlight color
-      newHighlightedNodes.push(acceptingNode.node);
-    });
+    const newHighlightedIds = new Set(this.acceptingNodes.map(an => an.node.id));
+    const oldHighlightedIds = new Set(Array.from(this.highlightedNodes).map(n => n.id));
 
-    // Clear previous highlights
-    this.clearHighlights();
+    const toHighlight = new Set([...newHighlightedIds].filter(id => !oldHighlightedIds.has(id)));
+    const toUnhighlight = new Set([...oldHighlightedIds].filter(id => !newHighlightedIds.has(id)));
 
-    // Update highlighted nodes
-    this.highlightedNodes = newHighlightedNodes;
-    this.canvas.draw(true, true); // Mark canvas for redraw
+    let needsRedraw = false;
+
+    if (toUnhighlight.size > 0) {
+      toUnhighlight.forEach(nodeId => {
+        const node = this.graph.getNodeById(nodeId);
+        if (node && this.originalNodeColors.has(nodeId)) {
+          node.bgcolor = this.originalNodeColors.get(nodeId);
+          this.originalNodeColors.delete(nodeId);
+        }
+      });
+      needsRedraw = true;
+    }
+
+    if (toHighlight.size > 0) {
+      this.acceptingNodes.forEach(acceptingNode => {
+        if (toHighlight.has(acceptingNode.node.id)) {
+          if (!this.originalNodeColors.has(acceptingNode.node.id)) {
+            this.originalNodeColors.set(acceptingNode.node.id, acceptingNode.node.bgcolor);
+          }
+          acceptingNode.node.bgcolor = this.highlightColor;
+        }
+      });
+      needsRedraw = true;
+    }
+    
+    this.highlightedNodes = new Set(this.acceptingNodes.map(an => an.node));
+
+    if (needsRedraw) {
+      this.canvas.draw(true, true);
+    }
   }
 
   clearHighlights() {
-    if (this.highlightedNodes.length) {
+    if (this.highlightedNodes.size) {
       this.highlightedNodes.forEach(node => {
         if (this.originalNodeColors.has(node.id)) {
           node.bgcolor = this.originalNodeColors.get(node.id);
           this.originalNodeColors.delete(node.id);
         }
       });
-      this.highlightedNodes = [];
-      if (this.canvas.ds && this.canvas.ds.redrawArea) {
-        // Redraw only affected areas if supported
-        this.highlightedNodes.forEach(node => {
-          const nodeArea = {
-            x: node.pos[0],
-            y: node.pos[1],
-            width: node.size[0],
-            height: node.size[1],
-          };
-          this.canvas.ds.redrawArea(nodeArea);
-        });
-      } else {
-        this.canvas.draw(true, true); // Fallback to full redraw
-      }
+      this.highlightedNodes.clear();
+      this.canvas.draw(true, true);
     }
   }
 
@@ -284,8 +292,7 @@ export class QuickConnection {
           }
         });
 
-        const SNAPPING_THRESHOLD_PX = 50;
-        if (closestNode && closestDist < SNAPPING_THRESHOLD_PX) { // Snapping threshold
+        if (closestNode && closestDist < this.snappingThreshold) { // Snapping threshold
           const fromNode = connectionInfo.node;
           const fromSlot = connectionInfo.slot;
           const toNode = closestNode.node;

@@ -16,6 +16,7 @@ import base64
 from scipy import signal
 from sklearn.preprocessing import StandardScaler
 from .config import settings
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -162,143 +163,155 @@ class AudioProcessor:
     async def detect_key_and_scale(self, audio_data: np.ndarray) -> Dict[str, Any]:
         """Detect musical key and scale of the audio."""
         try:
-            # Extract chroma features
-            chroma = librosa.feature.chroma_stft(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
-            
-            # Average chroma across time
-            chroma_mean = np.mean(chroma, axis=1)
-            
-            # Key detection using chroma profile correlation
-            key_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-            
-            # Major and minor scale templates
-            major_template = np.array([1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1])
-            minor_template = np.array([1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0])
-            
-            correlations_major = []
-            correlations_minor = []
-            
-            for shift in range(12):
-                major_shifted = np.roll(major_template, shift)
-                minor_shifted = np.roll(minor_template, shift)
-                
-                corr_major = np.corrcoef(chroma_mean, major_shifted)[0, 1]
-                corr_minor = np.corrcoef(chroma_mean, minor_shifted)[0, 1]
-                
-                correlations_major.append(corr_major)
-                correlations_minor.append(corr_minor)
-            
-            best_major_idx = np.argmax(correlations_major)
-            best_minor_idx = np.argmax(correlations_minor)
-            
-            best_major_corr = correlations_major[best_major_idx]
-            best_minor_corr = correlations_minor[best_minor_idx]
-            
-            if best_major_corr > best_minor_corr:
-                detected_key = key_names[best_major_idx]
-                detected_scale = 'major'
-                confidence = best_major_corr
-            else:
-                detected_key = key_names[best_minor_idx]
-                detected_scale = 'minor'
-                confidence = best_minor_corr
-            
-            return {
-                'key': detected_key,
-                'scale': detected_scale,
-                'confidence': float(confidence),
-                'chroma_profile': chroma_mean.tolist()
-            }
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self._detect_key_and_scale_sync, audio_data)
         except Exception as e:
             logger.error(f"Error detecting key and scale: {e}")
             raise
+
+    def _detect_key_and_scale_sync(self, audio_data: np.ndarray) -> Dict[str, Any]:
+        # Extract chroma features
+        chroma = librosa.feature.chroma_stft(
+            y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
+        )
+        
+        # Average chroma across time
+        chroma_mean = np.mean(chroma, axis=1)
+        
+        # Key detection using chroma profile correlation
+        key_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        
+        # Major and minor scale templates
+        major_template = np.array([1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1])
+        minor_template = np.array([1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0])
+        
+        correlations_major = []
+        correlations_minor = []
+        
+        for shift in range(12):
+            major_shifted = np.roll(major_template, shift)
+            minor_shifted = np.roll(minor_template, shift)
+            
+            corr_major = np.corrcoef(chroma_mean, major_shifted)[0, 1]
+            corr_minor = np.corrcoef(chroma_mean, minor_shifted)[0, 1]
+            
+            correlations_major.append(corr_major)
+            correlations_minor.append(corr_minor)
+        
+        best_major_idx = np.argmax(correlations_major)
+        best_minor_idx = np.argmax(correlations_minor)
+        
+        best_major_corr = correlations_major[best_major_idx]
+        best_minor_corr = correlations_minor[best_minor_idx]
+        
+        if best_major_corr > best_minor_corr:
+            detected_key = key_names[best_major_idx]
+            detected_scale = 'major'
+            confidence = best_major_corr
+        else:
+            detected_key = key_names[best_minor_idx]
+            detected_scale = 'minor'
+            confidence = best_minor_corr
+        
+        return {
+            'key': detected_key,
+            'scale': detected_scale,
+            'confidence': float(confidence),
+            'chroma_profile': chroma_mean.tolist()
+        }
     
     async def segment_audio(self, audio_data: np.ndarray, num_segments: Optional[int] = None) -> Dict[str, Any]:
         """Segment audio into structural parts (verse, chorus, etc.)."""
         try:
-            # Use recurrence matrix for structural segmentation
-            chroma = librosa.feature.chroma_stft(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
-            
-            # Compute recurrence matrix
-            R = librosa.segment.recurrence_matrix(
-                chroma, mode='affinity', metric='cosine'
-            )
-            
-            # Detect boundaries
-            boundaries = librosa.segment.agglomerative(
-                R, k=num_segments if num_segments else 8  # Configurable number of segments
-            )
-            
-            # Convert frame indices to time
-            boundary_times = librosa.frames_to_time(
-                boundaries, sr=self.sample_rate, hop_length=self.hop_length
-            )
-            
-            # Create segments
-            segments = []
-            for i in range(len(boundary_times) - 1):
-                start_time = boundary_times[i]
-                end_time = boundary_times[i + 1]
-                duration = end_time - start_time
-                
-                segments.append({
-                    'start': float(start_time),
-                    'end': float(end_time),
-                    'duration': float(duration),
-                    'segment_id': i
-                })
-            
-            return {
-                'segments': segments,
-                'num_segments': len(segments),
-                'total_duration': len(audio_data) / self.sample_rate
-            }
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self._segment_audio_sync, audio_data, num_segments)
         except Exception as e:
             logger.error(f"Error segmenting audio: {e}")
             raise
+
+    def _segment_audio_sync(self, audio_data: np.ndarray, num_segments: Optional[int] = None) -> Dict[str, Any]:
+        # Use recurrence matrix for structural segmentation
+        chroma = librosa.feature.chroma_stft(
+            y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
+        )
+        
+        # Compute recurrence matrix
+        R = librosa.segment.recurrence_matrix(
+            chroma, mode='affinity', metric='cosine'
+        )
+        
+        # Detect boundaries
+        boundaries = librosa.segment.agglomerative(
+            R, k=num_segments if num_segments else 8  # Configurable number of segments
+        )
+        
+        # Convert frame indices to time
+        boundary_times = librosa.frames_to_time(
+            boundaries, sr=self.sample_rate, hop_length=self.hop_length
+        )
+        
+        # Create segments
+        segments = []
+        for i in range(len(boundary_times) - 1):
+            start_time = boundary_times[i]
+            end_time = boundary_times[i + 1]
+            duration = end_time - start_time
+            
+            segments.append({
+                'start': float(start_time),
+                'end': float(end_time),
+                'duration': float(duration),
+                'segment_id': i
+            })
+        
+        return {
+            'segments': segments,
+            'num_segments': len(segments),
+            'total_duration': len(audio_data) / self.sample_rate
+        }
     
     async def extract_rhythm_features(self, audio_data: np.ndarray) -> Dict[str, Any]:
         """Extract detailed rhythm and timing features."""
         try:
-            # Tempo and beat tracking
-            tempo, beats = librosa.beat.beat_track(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
-            
-            # Beat synchronous features
-            beat_chroma = librosa.util.sync(
-                librosa.feature.chroma_stft(y=audio_data, sr=self.sample_rate),
-                beats
-            )
-            
-            # Onset detection with different methods
-            onsets_energy = librosa.onset.onset_detect(
-                y=audio_data, sr=self.sample_rate, units='time'
-            )
-            onsets_spectral = librosa.onset.onset_detect(
-                y=audio_data, sr=self.sample_rate, onset_envelope=librosa.onset.onset_strength(
-                    y=audio_data, sr=self.sample_rate, feature=librosa.feature.melspectrogram
-                ), units='time'
-            )
-            
-            # Rhythm patterns
-            tempogram = librosa.feature.tempogram(
-                y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
-            )
-            
-            return {
-                'tempo': float(tempo),
-                'beats': librosa.frames_to_time(beats, sr=self.sample_rate).tolist(),
-                'beat_chroma': beat_chroma.tolist(),
-                'onsets_energy': onsets_energy.tolist(),
-                'onsets_spectral': onsets_spectral.tolist(),
-                'tempogram': tempogram.tolist(),
-                'rhythm_strength': float(np.std(tempogram))
-            }
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self._extract_rhythm_features_sync, audio_data)
         except Exception as e:
             logger.error(f"Error extracting rhythm features: {e}")
             raise
+
+    def _extract_rhythm_features_sync(self, audio_data: np.ndarray) -> Dict[str, Any]:
+        # Tempo and beat tracking
+        tempo, beats = librosa.beat.beat_track(
+            y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
+        )
+        
+        # Beat synchronous features
+        beat_chroma = librosa.util.sync(
+            librosa.feature.chroma_stft(y=audio_data, sr=self.sample_rate),
+            beats
+        )
+        
+        # Onset detection with different methods
+        onsets_energy = librosa.onset.onset_detect(
+            y=audio_data, sr=self.sample_rate, units='time'
+        )
+        onsets_spectral = librosa.onset.onset_detect(
+            y=audio_data, sr=self.sample_rate, onset_envelope=librosa.onset.onset_strength(
+                y=audio_data, sr=self.sample_rate, feature=librosa.feature.melspectrogram
+            ), units='time'
+        )
+        
+        # Rhythm patterns
+        tempogram = librosa.feature.tempogram(
+            y=audio_data, sr=self.sample_rate, hop_length=self.hop_length
+        )
+        
+        return {
+            'tempo': float(tempo),
+            'beats': librosa.frames_to_time(beats, sr=self.sample_rate).tolist(),
+            'beat_chroma': beat_chroma.tolist(),
+            'onsets_energy': onsets_energy.tolist(),
+            'onsets_spectral': onsets_spectral.tolist(),
+            'tempogram': tempogram.tolist(),
+            'rhythm_strength': float(np.std(tempogram))
+        }

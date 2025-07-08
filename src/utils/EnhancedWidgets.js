@@ -121,6 +121,12 @@ export class EnhancedWidgets {
       });
       
       document.body.appendChild(this.element);
+
+      this.onRemoved = () => {
+        if (this.element.parentElement) {
+          this.element.parentElement.removeChild(this.element);
+        }
+      };
     };
 
     LiteGraph.FileSelectorWidget.prototype.draw = function(ctx, node, widget_width, y, H) {
@@ -208,7 +214,7 @@ export class EnhancedWidgets {
       if (event.type === "mousedown") {
         if (this.isOpen) {
           // Handle font selection
-          const itemIndex = Math.floor((pos[1] - 20) / 20);
+          const itemIndex = Math.floor((pos[1] - (this.y + this.size[1])) / 20);
           if (itemIndex >= 0 && itemIndex < this.fonts.length) {
             this.value = this.fonts[itemIndex];
             if (this.property) {
@@ -352,7 +358,7 @@ export class EnhancedWidgets {
     LiteGraph.ComboWidget.prototype.mouse = function(event, pos, node) {
       if (event.type === "mousedown") {
         if (this.isOpen) {
-          const itemIndex = Math.floor((pos[1] - 20) / 20);
+          const itemIndex = Math.floor((pos[1] - (this.y + this.size[1])) / 20);
           if (itemIndex >= 0 && itemIndex < this.values.length) {
             this.value = this.values[itemIndex];
             if (this.property) {
@@ -514,6 +520,7 @@ export class EnhancedWidgets {
       
       this.isEditing = false;
       this.multiline = this.options.multiline !== false;
+      this.cursorPos = 0;
     };
 
     LiteGraph.TextAreaWidget.prototype.draw = function(ctx, node, widget_width, y, H) {
@@ -542,7 +549,9 @@ export class EnhancedWidgets {
       // Cursor
       if (this.isEditing) {
         ctx.fillStyle = "#FFF";
-        ctx.fillRect(5 + ctx.measureText(this.value).width, y + 5, 1, H - 10);
+        const textBeforeCursor = this.value.substring(0, this.cursorPos);
+        const cursorX = 5 + ctx.measureText(textBeforeCursor).width;
+        ctx.fillRect(cursorX, y + 5, 1, H - 10);
       }
     };
 
@@ -554,6 +563,27 @@ export class EnhancedWidgets {
       }
       return false;
     };
+
+    LiteGraph.TextAreaWidget.prototype.key = function(e) {
+        if (this.isEditing) {
+            if (e.key === 'Enter' && !this.multiline) {
+                this.isEditing = false;
+                return;
+            }
+            if (e.key === 'Backspace') {
+                this.value = this.value.slice(0, -1);
+            } else if (e.key.length === 1) {
+                this.value += e.key;
+            }
+            if (this.property) {
+                this.node.setProperty(this.property, this.value);
+            }
+            if (this.callback) {
+                this.callback(this.value, this);
+            }
+            this.node.setDirtyCanvas(true);
+        }
+    }
   }
 
   // Helper method to add enhanced widgets to nodes

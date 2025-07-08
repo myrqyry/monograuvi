@@ -105,7 +105,7 @@ function NodeGraph() {
         graphRef.current.stop();
       }
     };
-  }, [nodes, setGraph]);
+  }, []);
 
   // Handle canvas resize
   useEffect(() => {
@@ -174,7 +174,7 @@ function NodeGraph() {
       }
     );
     return unsubscribe;
-  }, [addNode]);
+  }, []);
   
   // Handle node drag from sidebar
   useEffect(() => {
@@ -222,7 +222,7 @@ function NodeGraph() {
       canvas.removeEventListener('drop', handleDrop);
       canvas.removeEventListener('dragover', handleDragOver);
     };
-  }, [addNode]);
+  }, []);
 
   useEffect(() => {
     if (!graphCanvasRef.current) return;
@@ -233,7 +233,7 @@ function NodeGraph() {
     return () => {
       quickConnection.enabled = false;
     };
-  }, [graphCanvasRef]);
+  }, []);
 
   // Enhancement: theme switching (minimal, just data-theme attr for now)
   const handleThemeChange = (e) => {

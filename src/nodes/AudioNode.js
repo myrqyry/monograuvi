@@ -351,6 +351,10 @@ class AudioNode extends BaseNode {
             this.timeData = new Uint8Array(this.analyser.fftSize);
         }
 
+        if (audioInput && audioInput.connect) {
+            audioInput.connect(this.analyser);
+        }
+
         this.analyser.getByteFrequencyData(this.frequencyData);
         this.analyser.getByteTimeDomainData(this.timeData);
 
@@ -360,8 +364,8 @@ class AudioNode extends BaseNode {
         const peak = Math.max(...this.timeData.map(val => Math.abs(val / 128 - 1)));
 
         return {
-            'Frequency Data': Array.from(this.frequencyData),
-            'Time Data': Array.from(this.timeData),
+            'Frequency Data': this.frequencyData,
+            'Time Data': this.timeData,
             'RMS': rms,
             'Peak': peak
         };
@@ -461,7 +465,7 @@ class AudioNode extends BaseNode {
                     'Key Profile': result.data.key_profile
                 };
             } else {
-                return result.data;
+                return this.generateFallbackData('key');
             }
         } else {
             // Frontend fallback
@@ -499,7 +503,7 @@ class AudioNode extends BaseNode {
                     'Genre': result.data.genre
                 };
             } else {
-                return result.data;
+                return this.generateFallbackData('mood');
             }
         } else {
             // Frontend fallback
@@ -512,6 +516,10 @@ class AudioNode extends BaseNode {
             this.analyser = this.audioContext.createAnalyser();
             this.analyser.fftSize = this.getProperty('fftSize');
             this.frequencyData = new Float32Array(this.analyser.frequencyBinCount);
+        }
+
+        if (audioInput && audioInput.connect) {
+            audioInput.connect(this.analyser);
         }
 
         this.analyser.getFloatFrequencyData(this.frequencyData);
@@ -550,21 +558,19 @@ class AudioNode extends BaseNode {
     processFilter(audioInput, inputs) {
         if (!this.filterNode) {
             this.filterNode = this.audioContext.createBiquadFilter();
-            this.filterNode.type = this.getProperty('type');
-            this.filterNode.frequency.value = this.getProperty('frequency');
-            this.filterNode.Q.value = this.getProperty('Q');
-            this.filterNode.gain.value = this.getProperty('gain');
         }
 
-        const frequency = inputs.Frequency || this.getProperty('frequency');
-        const q = inputs.Q || this.getProperty('Q');
-        this.filterNode.frequency.value = frequency;
-        this.filterNode.Q.value = q;
+        this.filterNode.type = this.getProperty('type');
+        this.filterNode.frequency.value = inputs.Frequency || this.getProperty('frequency');
+        this.filterNode.Q.value = inputs.Q || this.getProperty('Q');
+        this.filterNode.gain.value = this.getProperty('gain');
 
-        const filteredAudio = audioInput.connect(this.filterNode);
+        if (audioInput && audioInput.connect) {
+            audioInput.connect(this.filterNode);
+        }
 
         return {
-            'Audio': filteredAudio
+            'Audio': this.filterNode
         };
     }
 
@@ -597,6 +603,10 @@ class AudioNode extends BaseNode {
             this.frequencyData = new Float32Array(this.pitchDetectorNode.frequencyBinCount);
         }
 
+        if (audioInput && audioInput.connect) {
+            audioInput.connect(this.pitchDetectorNode);
+        }
+
         this.pitchDetectorNode.getFloatFrequencyData(this.frequencyData);
 
         const maxAmplitudeIndex = this.frequencyData.reduce((maxIndex, value, index, array) => {
@@ -621,7 +631,7 @@ class AudioNode extends BaseNode {
         if (name === 'fftSize' && ![256, 512, 1024, 2048, 4096, 8192, 16384].includes(value)) {
             console.warn(`Invalid fftSize value: ${value}, using default 2048`);
             if (this.getProperty('fftSize') !== 2048) {
-                this.properties.fftSize = 2048; // Directly update without triggering onPropertyChanged
+                this.setProperty('fftSize', 2048);
             }
             return;
         }
@@ -629,7 +639,7 @@ class AudioNode extends BaseNode {
         if (name === 'minBPM' && (value < 30 || value > 200)) {
             console.warn(`Invalid minBPM value: ${value}, resetting to default 60`);
             if (this.getProperty('minBPM') !== 60) {
-                this.properties.minBPM = 60; // Directly update without triggering onPropertyChanged
+                this.setProperty('minBPM', 60);
             }
             return;
         }
@@ -637,7 +647,7 @@ class AudioNode extends BaseNode {
         if (name === 'maxBPM' && (value < 80 || value > 300)) {
             console.warn(`Invalid maxBPM value: ${value}, resetting to default 180`);
             if (this.getProperty('maxBPM') !== 180) {
-                this.properties.maxBPM = 180; // Directly update without triggering onPropertyChanged
+                this.setProperty('maxBPM', 180);
             }
             return;
         }
@@ -661,17 +671,10 @@ class AudioNode extends BaseNode {
             this.analyser = null;
         }
         
-        if (this.audioContext && this.audioContext.state !== 'closed') {
-            console.warn('Audio context lifecycle should be managed externally. Skipping closure.');
-        }
-        
         // Reset data arrays
         this.frequencyData = null;
         this.timeData = null;
         this.lastError = null;
-        
-        // Reinitialize the node setup
-        this.setupAudioNode();
     }
 }
 

@@ -8,6 +8,7 @@ from typing import Dict, List
 import json
 import logging
 import asyncio
+import time
 
 from core.config import settings
 
@@ -24,10 +25,9 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, client_id: str = None):
         """Accept a new WebSocket connection."""
         await websocket.accept()
-        # No longer needed as active_connections is removed
         self.connection_data[websocket] = {
             "client_id": client_id,
-            "connected_at": time.time()
+            "connected_at": asyncio.get_event_loop().time()
         }
         logger.info(f"WebSocket client connected: {client_id}")
     
@@ -42,7 +42,7 @@ class ConnectionManager:
         """Send a message to a specific WebSocket."""
         try:
             await websocket.send_text(message)
-        except (RuntimeError, ConnectionClosedOK, ConnectionClosedError) as e:
+        except (WebSocketDisconnect, OSError) as e:
             logger.error(f"WebSocket error: {e}")
             self.disconnect(websocket)
     
@@ -52,7 +52,7 @@ class ConnectionManager:
         for connection in self.connection_data.keys():
             try:
                 await connection.send_text(message)
-            except (RuntimeError, ConnectionClosedOK, ConnectionClosedError) as e:
+            except (WebSocketDisconnect, OSError) as e:
                 logger.error(f"WebSocket error during broadcast: {e}")
                 disconnected.append(connection)
         
@@ -86,6 +86,15 @@ async def handle_websocket_messages(websocket: WebSocket, client_id: str, handle
                     json.dumps({
                         "type": "error",
                         "message": "Invalid JSON format"
+                    }),
+                    websocket
+                )
+            except Exception as e:
+                logger.exception(f"Error in WebSocket handler for client {client_id}: {e}")
+                await manager.send_personal_message(
+                    json.dumps({
+                        "type": "error",
+                        "message": "An internal error occurred."
                     }),
                     websocket
                 )
@@ -175,7 +184,10 @@ async def websocket_notifications(websocket: WebSocket, client_id: str = "anonym
     async def notification_handler(websocket, message):
         if message.get("broadcast"):
             # Ensure only authorized clients can broadcast
-            if not manager.connection_data[websocket].get("is_authorized", False):
+            # NOTE: A proper token-based authentication mechanism should be implemented here.
+            # This check is currently non-functional as 'is_authorized' is never set.
+            connection_info = manager.connection_data.get(websocket, {})
+            if not connection_info.get("is_authorized", False):
                 await manager.send_personal_message(
                     json.dumps({
                         "type": "error",
@@ -189,7 +201,7 @@ async def websocket_notifications(websocket: WebSocket, client_id: str = "anonym
                     "type": "notification",
                     "from": client_id,
                     "message": message.get("message"),
-                    "timestamp": time.time()
+                    "timestamp": asyncio.get_event_loop().time()
                 })
             )
         else:

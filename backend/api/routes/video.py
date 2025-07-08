@@ -29,7 +29,7 @@ def set_global_instances(video_generator: VideoGenerator, ml_manager: MLModelMan
     _video_generator = video_generator
     _ml_manager = ml_manager
 
-async def validate_audio_file(file: UploadFile) -> bytes:
+async def validate_audio_file(file: UploadFile) -> str:
     """
     Validate audio file and return file content.
     
@@ -37,7 +37,7 @@ async def validate_audio_file(file: UploadFile) -> bytes:
         file: Uploaded file
         
     Returns:
-        File content as bytes
+        File content as str
         
     Raises:
         HTTPException: If file validation fails
@@ -66,7 +66,7 @@ async def validate_audio_file(file: UploadFile) -> bytes:
         logger.error(f"Error validating audio file {file.filename}: {e}")
         raise HTTPException(status_code=400, detail=f"Audio file validation error: {str(e)}")
 
-async def validate_video_file(file: UploadFile) -> bytes:
+async def validate_video_file(file: UploadFile) -> str:
     """
     Validate video file and return file content.
     
@@ -74,7 +74,7 @@ async def validate_video_file(file: UploadFile) -> bytes:
         file: Uploaded file
         
     Returns:
-        File content as bytes
+        File content as str
         
     Raises:
         HTTPException: If file validation fails
@@ -125,16 +125,14 @@ class EffectConfig(BaseModel):
 def get_video_generator() -> VideoGenerator:
     """Get cached VideoGenerator instance."""
     if _video_generator is None:
-        # Fallback to creating new instance if not set by main.py
-        return VideoGenerator()
+        raise RuntimeError("VideoGenerator not initialized")
     return _video_generator
 
 @lru_cache(maxsize=1)
 def get_ml_manager() -> MLModelManager:
     """Get cached MLModelManager instance."""
     if _ml_manager is None:
-        # Fallback to creating new instance if not set by main.py
-        return MLModelManager()
+        raise RuntimeError("MLModelManager not initialized")
     return _ml_manager
 
 class ReactiveVideoRequest(BaseModel):
@@ -161,13 +159,10 @@ async def create_reactive_video(
         
     except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error creating reactive video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
-        logger.error(f"Error creating reactive video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        raise HTTPException(status_code=500, detail="Error creating reactive video")
+    except (OSError, FileNotFoundError) as e:
         logger.error(f"File handling error creating reactive video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="File handling error creating reactive video")
     except Exception as e:
         logger.error(f"Unhandled error creating reactive video: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -209,13 +204,10 @@ async def create_spectrogram_video(
                 
     except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error creating spectrogram video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
-        logger.error(f"Error creating spectrogram video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        raise HTTPException(status_code=500, detail="Error creating spectrogram video")
+    except (OSError, FileNotFoundError) as e:
         logger.error(f"File handling error creating spectrogram video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="File handling error creating spectrogram video")
     except Exception as e:
         logger.error(f"Unhandled error creating spectrogram video: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -244,13 +236,10 @@ async def create_particle_video(
         
     except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error creating particle video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
-        logger.error(f"Error creating particle video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        raise HTTPException(status_code=500, detail="Error creating particle video")
+    except (OSError, FileNotFoundError) as e:
         logger.error(f"File handling error creating particle video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="File handling error creating particle video")
     except Exception as e:
         logger.error(f"Unhandled error creating particle video: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -299,13 +288,10 @@ async def add_audio_to_video(
                 
     except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error adding audio to video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
-        logger.error(f"Error adding audio to video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        raise HTTPException(status_code=500, detail="Error adding audio to video")
+    except (OSError, FileNotFoundError) as e:
         logger.error(f"File handling error adding audio to video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="File handling error adding audio to video")
     except Exception as e:
         logger.error(f"Unhandled error adding audio to video: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -350,13 +336,10 @@ async def apply_video_effects(
                 
     except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error applying video effects: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
-        logger.error(f"Error applying video effects: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        raise HTTPException(status_code=500, detail="Error applying video effects")
+    except (OSError, FileNotFoundError) as e:
         logger.error(f"File handling error applying video effects: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="File handling error applying video effects")
     except Exception as e:
         logger.error(f"Unhandled error applying video effects: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -401,13 +384,10 @@ async def generate_video_from_mood(
         
     except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Error generating mood-based video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (ValueError, TypeError, RuntimeError, OSError, FileNotFoundError) as e:
-        logger.error(f"Error generating mood-based video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
+        raise HTTPException(status_code=500, detail="Error generating mood-based video")
+    except (OSError, FileNotFoundError) as e:
         logger.error(f"File handling error generating mood-based video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="File handling error generating mood-based video")
     except Exception as e:
         logger.error(f"Unhandled error generating mood-based video: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -435,13 +415,10 @@ async def download_video(filename: str):
         
     except (FileNotFoundError, PermissionError) as e:
         logger.error(f"Error downloading video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (FileNotFoundError, PermissionError, OSError, RuntimeError) as e:
+        raise HTTPException(status_code=500, detail="Error downloading video")
+    except (OSError, RuntimeError) as e:
         logger.error(f"Error downloading video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except (PermissionError, IsADirectoryError, NotADirectoryError) as e:
-        logger.error(f"File handling error downloading video: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error downloading video")
     except Exception as e:
         logger.error(f"Unhandled error downloading video: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")

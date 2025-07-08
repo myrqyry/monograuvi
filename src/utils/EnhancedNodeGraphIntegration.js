@@ -61,7 +61,7 @@ export class EnhancedNodeGraphIntegration {
     }
   }
 
-  async setupEnhancedWidgets(options = {}) {
+  setupEnhancedWidgets(options = {}) {
     if (!this.enhancedWidgets) return;
 
     // Register all enhanced widgets
@@ -77,7 +77,7 @@ export class EnhancedNodeGraphIntegration {
     console.log('Enhanced widgets initialized');
   }
 
-  async setupContextMenus(graphCanvas, options = {}) {
+  setupContextMenus(graphCanvas, options = {}) {
     if (!this.contextMenuExtensions || !graphCanvas) return;
 
     const callbacks = {
@@ -105,7 +105,7 @@ export class EnhancedNodeGraphIntegration {
     console.log('Context menu extensions initialized');
   }
 
-  async setupNodeGrouping(options = {}) {
+  setupNodeGrouping(options = {}) {
     if (!this.nodeGroupingHelpers) return;
 
     // Configure grouping options
@@ -124,7 +124,7 @@ export class EnhancedNodeGraphIntegration {
     console.log('Node grouping helpers initialized');
   }
 
-  async setupThemeManager(options = {}) {
+  setupThemeManager(options = {}) {
     if (!this.themeManager) return;
 
     // Load saved theme preference
@@ -142,14 +142,14 @@ export class EnhancedNodeGraphIntegration {
     // Load custom themes
     if (options.customThemes) {
       for (const [name, themeData] of Object.entries(options.customThemes)) {
-        this.themeManager.importTheme(JSON.stringify(themeData));
+        this.themeManager.importTheme(themeData);
       }
     }
 
     console.log('Theme manager initialized with theme:', initialTheme);
   }
 
-  async setupSearchEnhancements(graphCanvas, options = {}) {
+  setupSearchEnhancements(graphCanvas, options = {}) {
     if (!this.searchEnhancements || !graphCanvas) return;
 
     const callbacks = {
@@ -247,8 +247,8 @@ export class EnhancedNodeGraphIntegration {
     };
 
     // Store in global triggers if store is available
-    if (window.useStore) {
-      const store = window.useStore.getState();
+    if (this.callbacks.getStore) {
+      const store = this.callbacks.getStore().getState();
       if (store.addTrigger) {
         store.addTrigger(trigger.timestamp / 1000); // Convert to seconds
       }
@@ -271,8 +271,11 @@ export class EnhancedNodeGraphIntegration {
 
   getCurrentBPM() {
     // Try to get BPM from audio analysis
-    if (window.audioAnalysis && window.audioAnalysis.bpm) {
-      return window.audioAnalysis.bpm;
+    if (this.callbacks.getAudioAnalysis) {
+      const audioAnalysis = this.callbacks.getAudioAnalysis();
+      if (audioAnalysis && audioAnalysis.bpm) {
+        return audioAnalysis.bpm;
+      }
     }
     return 120; // Default BPM
   }
