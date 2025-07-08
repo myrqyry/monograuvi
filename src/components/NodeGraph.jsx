@@ -225,12 +225,7 @@ function NodeGraph() {
   }, [addNode]);
 
   useEffect(() => {
-    if (!graphRef.current || !window.LiteGraph || !canvasRef.current) return;
-
-    const LiteGraph = window.LiteGraph;
-    if (!graphCanvasRef.current) {
-      graphCanvasRef.current = new LiteGraph.LGraphCanvas(canvasRef.current, graphRef.current);
-    }
+    if (!graphCanvasRef.current) return;
 
     const quickConnection = new QuickConnection();
     quickConnection.initListeners(graphCanvasRef.current);
@@ -238,7 +233,7 @@ function NodeGraph() {
     return () => {
       quickConnection.enabled = false;
     };
-  }, []);
+  }, [graphCanvasRef]);
 
   // Enhancement: theme switching (minimal, just data-theme attr for now)
   const handleThemeChange = (e) => {

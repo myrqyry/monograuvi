@@ -49,20 +49,11 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     const handleLoadedData = async () => {
       if (audioContext && audio.src) {
         try {
-          const response = await fetch(audio.src);
-          const arrayBuffer = await response.arrayBuffer();
+          const arrayBuffer = await fetch(audio.src).then(res => res.arrayBuffer());
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           setAudioBuffer(audioBuffer);
-
-          // Extract BPM using BeatDetector
-          const bpmValue = await extractBpm(audioBuffer);
-          setBpm(bpmValue);
-
-          // Extract Key using PitchDetector
-          const keyValue = await extractKey(audioBuffer);
-          setKey(keyValue);
         } catch (error) {
-          console.error('Error loading audio buffer or extracting BPM:', error);
+          console.error('Error loading audio buffer:', error);
         }
       }
     };
