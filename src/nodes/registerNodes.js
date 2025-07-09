@@ -1,5 +1,5 @@
 // src/nodes/registerNodes.js
-import { LGraphNode } from 'litegraph.js'; // Import LGraphNode for event type
+// import { LGraphNode } from 'litegraph.js'; // Removed this line
 import BaseNode from './BaseNode.js'; // Ensure BaseNode is imported if not already
 import { createAudioNode, AudioNode } from './AudioNode.js';
 import { createVisualNode, VisualNode, VisualTypes } from './VisualNode.js';
@@ -103,7 +103,7 @@ function registerBaseNodeAsLiteGraphNode(NodeTypeClass, liteGraphTypeName, liteG
   LiteGraphWrapper.prototype.configure = function(info) {
     // LiteGraph's default configure handles properties.
     // We need to ensure these are passed to the BaseNode instance.
-    LGraphNode.prototype.configure.apply(this, [info]);
+    window.LGraphNode.prototype.configure.apply(this, [info]); // Changed to window.LGraphNode
     if (this.nodeInstance.deserialize) {
         // Pass relevant parts of info to deserialize.
         // BaseNode's deserialize expects an object like { properties: {...}, id: ..., etc. }
@@ -131,7 +131,7 @@ function registerBaseNodeAsLiteGraphNode(NodeTypeClass, liteGraphTypeName, liteG
 
   LiteGraphWrapper.prototype.serialize = function() {
       // Start with LiteGraph's default serialization
-      const data = LGraphNode.prototype.serialize.call(this);
+      const data = window.LGraphNode.prototype.serialize.call(this); // Changed to window.LGraphNode
       // Override/extend with BaseNode's serialization for relevant parts if necessary
       // BaseNode's properties are already part of LiteGraph's `this.properties` which gets serialized.
       // If BaseNode has other important state not covered, merge it here.
