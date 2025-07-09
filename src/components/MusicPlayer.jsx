@@ -45,7 +45,18 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   }));
 
   // Extract bpm and key for display, handling potential null values
-  const displayBpm = audioMetadata?.tempo ? Math.round(audioMetadata.tempo) : 'N/A';
+  let displayBpm = 'N/A';
+  if (typeof audioMetadata?.tempo === 'number' && !isNaN(audioMetadata.tempo)) {
+    displayBpm = Math.round(audioMetadata.tempo);
+  } else if (audioMetadata?.tempo) { // If tempo exists but isn't a number (e.g. "N/A" from a previous error)
+    displayBpm = String(audioMetadata.tempo); // Display it as is, or keep 'N/A'
+  }
+  // For simplicity, if tempo is not a valid number, it remains 'N/A' or its string value.
+  // A more robust way for direct display:
+  // const displayBpm = (typeof audioMetadata?.tempo === 'number' && !isNaN(audioMetadata.tempo))
+  //   ? Math.round(audioMetadata.tempo)
+  //   : (audioMetadata?.tempo || 'N/A'); // Show tempo string if available, else N/A
+
   const displayKey = audioMetadata?.key || 'N/A';
   const analysisError = audioMetadata?.error;
 
