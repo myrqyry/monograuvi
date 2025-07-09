@@ -17,6 +17,7 @@ from scipy import signal
 from sklearn.preprocessing import StandardScaler
 from .config import settings
 import asyncio
+import functools # Added import
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,13 @@ class AudioProcessor:
         """Load audio file and return audio data and sample rate."""
         try:
             loop = asyncio.get_event_loop()
-            audio_data, sr = await loop.run_in_executor(None, librosa.load, file_path, self.sample_rate)
-            logger.info(f"Loaded audio: {len(audio_data)} samples at {sr} Hz")
+            # Create a partial function with the 'sr' keyword argument pre-filled
+            load_with_sr = functools.partial(librosa.load, sr=self.sample_rate)
+            # Pass file_path as the positional argument to this new partial function
+            audio_data, sr = await loop.run_in_executor(None, load_with_sr, file_path)
+            logger.info(f"Loaded audio: {len(audio_data)} samples at {sr} Hz (target sr: {self.sample_rate})")
+            # Note: librosa.load returns the actual sample rate of the loaded audio if sr=None,
+            # or the target sample rate if resampling occurred. Here, sr should match self.sample_rate.
             return audio_data, sr
         except Exception as e:
             logger.error(f"Error loading audio: {e}")
