@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { VRMLoaderPlugin, VRMUtils, VRMAnimationLoaderPlugin } from '@pixiv/three-vrm';
+// Ensure VRMAnimationLoaderPlugin is NOT in the line below
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import MotionLibrary from '../lib/MotionLibrary';
 import useStore from '../store';
 import Playhead from '../lib/Playhead'; // Added Playhead
@@ -72,7 +73,16 @@ const VRMViewer = () => {
     scene.add(light);
 
     // Initialize VMD Loader (VRMAnimationLoaderPlugin instance)
-    vmdLoaderRef.current = new VRMAnimationLoaderPlugin();
+    // Attempt to access it via VRMUtils
+    if (VRMUtils.VRMAnimationLoaderPlugin) {
+      vmdLoaderRef.current = new VRMUtils.VRMAnimationLoaderPlugin();
+    } else {
+      // Fallback or error if not found on VRMUtils - this indicates a deeper issue with the library version or structure
+      console.error("VRMAnimationLoaderPlugin not found on VRMUtils. The @pixiv/three-vrm API might have changed or the plugin is located elsewhere.");
+      // Optionally, set an error state or prevent further operations that depend on vmdLoaderRef.current
+      setLoadError("Failed to initialize VMD animation loader. Animations may not work.");
+      // vmdLoaderRef.current will remain null if this path is taken.
+    }
 
     // GLTF Loader for VRM model
     const modelLoader = new GLTFLoader(); // Already correctly named modelLoader here
