@@ -20,19 +20,8 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const [audioUrl, setAudioUrl] = useState(null);
   
   // Get state and actions from store
-  const {
-    audioContext,
-    isPlaying,
-    currentTime,
-    duration,
-    setAudioBuffer,
-    setCurrentTime,
-    setIsPlaying,
-    setDuration,
-    setAudioMetadata,
-    audioMetadata,
-    setAudioContext   // Add setAudioContext for initialization
-  } = useStore(state => ({
+  // Using explicit store object to debug setAudioContext availability
+  const storeSelector = state => ({
     audioContext: state.audioContext,
     isPlaying: state.isPlaying,
     currentTime: state.currentTime,
@@ -42,24 +31,21 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     setIsPlaying: state.setIsPlaying,
     setDuration: state.setDuration,
     setAudioMetadata: state.setAudioMetadata,
-    audioMetadata: state.audioMetadata, // Subscribe to audioMetadata
-  }));
+    audioMetadata: state.audioMetadata,
+    setAudioContext: state.setAudioContext
+  });
+  const store = useStore(storeSelector);
 
   // Extract bpm and key for display, handling potential null values
   let displayBpm = 'N/A';
-  if (typeof audioMetadata?.tempo === 'number' && !isNaN(audioMetadata.tempo)) {
-    displayBpm = Math.round(audioMetadata.tempo);
-  } else if (audioMetadata?.tempo) { // If tempo exists but isn't a number (e.g. "N/A" from a previous error)
-    displayBpm = String(audioMetadata.tempo); // Display it as is, or keep 'N/A'
+  if (typeof store.audioMetadata?.tempo === 'number' && !isNaN(store.audioMetadata.tempo)) {
+    displayBpm = Math.round(store.audioMetadata.tempo);
+  } else if (store.audioMetadata?.tempo) {
+    displayBpm = String(store.audioMetadata.tempo);
   }
-  // For simplicity, if tempo is not a valid number, it remains 'N/A' or its string value.
-  // A more robust way for direct display:
-  // const displayBpm = (typeof audioMetadata?.tempo === 'number' && !isNaN(audioMetadata.tempo))
-  //   ? Math.round(audioMetadata.tempo)
-  //   : (audioMetadata?.tempo || 'N/A'); // Show tempo string if available, else N/A
 
-  const displayKey = audioMetadata?.key || 'N/A';
-  const analysisError = audioMetadata?.error;
+  const displayKey = store.audioMetadata?.key || 'N/A';
+  const analysisError = store.audioMetadata?.error;
 
 
   // Setup HTML5 audio element
@@ -68,23 +54,23 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     if (!audio) return;
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      store.setDuration(audio.duration);
     };
 
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
+      store.setCurrentTime(audio.currentTime);
     };
 
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-    const handleEnded = () => setIsPlaying(false);
+    const handlePlay = () => store.setIsPlaying(true);
+    const handlePause = () => store.setIsPlaying(false);
+    const handleEnded = () => store.setIsPlaying(false);
 
     const handleLoadedData = async () => {
-      if (audioContext && audio.src) {
+      if (store.audioContext && audio.src) {
         try {
           const arrayBuffer = await fetch(audio.src).then(res => res.arrayBuffer());
-          const decodedAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          setAudioBuffer(decodedAudioBuffer);
+          const decodedAudioBuffer = await store.audioContext.decodeAudioData(arrayBuffer);
+          store.setAudioBuffer(decodedAudioBuffer);
           console.log('MusicPlayer: AudioBuffer set in store.', {
             duration: decodedAudioBuffer.duration,
             length: decodedAudioBuffer.length,
@@ -110,11 +96,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       console.warn(`Initial volume state was non-finite: ${volume}. Setting audio element volume to 1.`);
       audio.volume = 1; // Fallback to a safe default
     }
-    // Consider if `setVolume(audio.volume);` is truly needed here.
-    // If `volume` state is the source of truth, this line might be removed
-    // or also guarded: if (isFinite(audio.volume)) setVolume(audio.volume);
-    // For now, let's keep it but be aware it might be redundant if `volume` state is well-managed.
-    if (isFinite(audio.volume)) { // Guarding the read-back and re-set
+    if (isFinite(audio.volume)) {
         setVolume(audio.volume);
     }
 
@@ -132,8 +114,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-     // Add audioContext to dependency array because handleLoadedData uses it
-  }, [audioContext, setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]);
+  }, [store.audioContext, store.setAudioBuffer, store.setCurrentTime, store.setIsPlaying, store.setDuration, volume, audioRef, store]); // Added store to deps
 
   // Check if text needs scrolling when title or artist changes
   useEffect(() => {
@@ -176,12 +157,12 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     const file = e.target.files[0];
     if (file) {
       // Ensure AudioContext is initialized or resumed
-      if (!audioContext) {
+      if (!store.audioContext) {
         const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        setAudioContext(newAudioContext); // This comes from useStore now
+        store.setAudioContext(newAudioContext);
         console.log("AudioContext initialized from MusicPlayer file change.");
-      } else if (audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
+      } else if (store.audioContext.state === 'suspended') {
+        store.audioContext.resume().then(() => {
           console.log("AudioContext resumed from MusicPlayer file change.");
         }).catch(err => console.error("Error resuming AudioContext:", err));
       }
@@ -247,19 +228,19 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
           error: null // Clear any previous error on success
         };
 
-        if (setAudioMetadata) {
-          setAudioMetadata(metadata);
+        if (store.setAudioMetadata) { // Use store.setAudioMetadata
+          store.setAudioMetadata(metadata);
         }
 
         if (features?.duration && features.duration !== currentGlobalDuration) {
-          setDuration(features.duration);
+          store.setDuration(features.duration); // Use store.setDuration
         }
         console.log('Audio analysis successful (axios):', metadata);
       } else {
         // This case might be less common if backend consistently returns error statuses for failures
         console.error('Audio analysis returned success status but missing results (axios):', result);
-        if (setAudioMetadata) {
-          setAudioMetadata({
+        if (store.setAudioMetadata) { // Use store.setAudioMetadata
+          store.setAudioMetadata({
             key: 'N/A',
             tempo: 'N/A',
             duration: currentGlobalDuration,
@@ -274,9 +255,9 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
 
       // Ensure audioMetadata in store reflects an error state if not already set by interceptor
       // This is a bit defensive, as the interceptor should handle it.
-      const currentStoreError = useStore.getState().audioMetadata.error;
-      if (setAudioMetadata && !currentStoreError) {
-         setAudioMetadata({
+      const currentStoreError = useStore.getState().audioMetadata.error; // Can still use useStore.getState() here
+      if (store.setAudioMetadata && !currentStoreError) { // Use store.setAudioMetadata
+         store.setAudioMetadata({
             key: 'Error', // Or N/A
             tempo: 'N/A',
             duration: currentGlobalDuration,
