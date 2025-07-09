@@ -30,6 +30,7 @@
     "rete-render-utils": "^2.0.0",
     "rete-history-plugin": "^2.0.0",
     "rete-context-menu-plugin": "^2.0.0",
+    "rete-engine": "^2.0.0",
     "three": "^0.178.0",
     "wavesurfer.js": "^7.9.9",
     "zustand": "^4.0.0"
