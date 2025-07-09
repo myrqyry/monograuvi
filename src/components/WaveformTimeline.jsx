@@ -31,7 +31,7 @@ const WaveformTimeline = ({
     // For snapping to beat, we might need BPM. Assuming it will be in audioMetadata.
     // audioMetadata, // Example: { tempo: 120, key: 'C', duration: 180 }
   } = useStore(state => ({
-    audioBuffer: state.audioBuffer,
+    audioBuffer: state.audioBuffer, // Select audioBuffer
     currentTime: state.currentTime,
     duration: state.duration,
     isPlaying: state.isPlaying,
@@ -429,6 +429,19 @@ const WaveformTimeline = ({
       }
     };
   }, [isPlaying, render]);
+
+  // Log received audioBuffer
+  useEffect(() => {
+    if (audioBuffer) {
+      console.log('WaveformTimeline: audioBuffer received/changed in store.', {
+        duration: audioBuffer.duration,
+        length: audioBuffer.length,
+        numberOfChannels: audioBuffer.numberOfChannels,
+      });
+    } else {
+      console.log('WaveformTimeline: audioBuffer is null or undefined in store.');
+    }
+  }, [audioBuffer]);
 
   return (
     <div 

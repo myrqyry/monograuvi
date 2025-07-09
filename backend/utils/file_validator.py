@@ -125,10 +125,13 @@ class FileValidator:
             
             # Method 2: Check MIME type
             mime_type = self._get_mime_type(file_content, filename)
-            if mime_type and not mime_type.startswith('audio/'):
+            # If MIME type is generic binary, don't fail here; rely on magic bytes and extension.
+            # If it's a specific non-audio type (e.g., image/jpeg), then fail.
+            if mime_type and not mime_type.startswith('audio/') and mime_type != 'application/octet-stream':
                 return False, f"Invalid MIME type for audio file: {mime_type}"
             
             # Method 3: Check magic bytes (file signature)
+            # This becomes more important if MIME type was application/octet-stream
             if not self._check_magic_bytes(file_content, AUDIO_SIGNATURES):
                 return False, f"File signature does not match audio format: {extension}"
             

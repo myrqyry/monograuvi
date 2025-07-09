@@ -29,8 +29,9 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     setCurrentTime,
     setIsPlaying,
     setDuration,
-    setAudioMetadata, // Ensure this is present
-    audioMetadata     // Add audioMetadata here for destructuring
+    setAudioMetadata,
+    audioMetadata,
+    setAudioContext   // Add setAudioContext for initialization
   } = useStore(state => ({
     audioContext: state.audioContext,
     isPlaying: state.isPlaying,
@@ -82,8 +83,13 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       if (audioContext && audio.src) {
         try {
           const arrayBuffer = await fetch(audio.src).then(res => res.arrayBuffer());
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          setAudioBuffer(audioBuffer);
+          const decodedAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          setAudioBuffer(decodedAudioBuffer);
+          console.log('MusicPlayer: AudioBuffer set in store.', {
+            duration: decodedAudioBuffer.duration,
+            length: decodedAudioBuffer.length,
+            numberOfChannels: decodedAudioBuffer.numberOfChannels
+          });
         } catch (error) {
           console.error('Error loading audio buffer:', error);
         }
@@ -126,7 +132,8 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]);
+     // Add audioContext to dependency array because handleLoadedData uses it
+  }, [audioContext, setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]);
 
   // Check if text needs scrolling when title or artist changes
   useEffect(() => {
@@ -168,6 +175,17 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Ensure AudioContext is initialized or resumed
+      if (!audioContext) {
+        const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        setAudioContext(newAudioContext); // This comes from useStore now
+        console.log("AudioContext initialized from MusicPlayer file change.");
+      } else if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          console.log("AudioContext resumed from MusicPlayer file change.");
+        }).catch(err => console.error("Error resuming AudioContext:", err));
+      }
+
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
       setTrackTitle(file.name);
