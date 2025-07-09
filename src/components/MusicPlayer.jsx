@@ -97,9 +97,21 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadeddata', handleLoadedData);
 
-    // Set volume explicitly on mount
-    audio.volume = volume;
-    setVolume(audio.volume);
+    // Set volume explicitly on mount, ensuring it's finite
+    if (isFinite(volume)) {
+      audio.volume = volume;
+    } else {
+      console.warn(`Initial volume state was non-finite: ${volume}. Setting audio element volume to 1.`);
+      audio.volume = 1; // Fallback to a safe default
+    }
+    // Consider if `setVolume(audio.volume);` is truly needed here.
+    // If `volume` state is the source of truth, this line might be removed
+    // or also guarded: if (isFinite(audio.volume)) setVolume(audio.volume);
+    // For now, let's keep it but be aware it might be redundant if `volume` state is well-managed.
+    if (isFinite(audio.volume)) { // Guarding the read-back and re-set
+        setVolume(audio.volume);
+    }
+
 
     // Expose audio element
     if (audioRef) {
@@ -263,11 +275,23 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   };
 
   const handleVolumeChange = (newVolume) => {
+    // Ensure newVolume is a finite number before calculations
+    if (!isFinite(newVolume)) {
+      console.warn(`handleVolumeChange received non-finite newVolume: ${newVolume}`);
+      return; // Or set to a safe default if appropriate
+    }
+
     const clampedVolume = Math.max(0, Math.min(1, newVolume));
-    setVolume(clampedVolume);
-    const audio = audioElementRef.current;
-    if (audio) {
-      audio.volume = clampedVolume;
+
+    // Only set state and audio element volume if clampedVolume is finite
+    if (isFinite(clampedVolume)) {
+      setVolume(clampedVolume);
+      const audio = audioElementRef.current;
+      if (audio) {
+        audio.volume = clampedVolume;
+      }
+    } else {
+      console.warn(`clampedVolume became non-finite: ${clampedVolume} from newVolume: ${newVolume}`);
     }
   };
 

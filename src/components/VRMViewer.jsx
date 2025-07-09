@@ -40,8 +40,8 @@ const VRMViewer = () => {
   const getIsDancePlayingFromStore = useCallback(() => useStore.getState().isDancePlaying, []);
   const getPlayheadTimeFromStore = useCallback(() => useStore.getState().playheadTime, []);
 
-  // Updated default model URL to a versioned unpkg link for better stability
-  const [vrmModelUrl, setVrmModelUrl] = useState('https://unpkg.com/@pixiv/three-vrm@1.0.11/models/VRM1_Constraint_Twist_Sample.vrm');
+  // Updated default model URL to point to a locally hosted sample model
+  const [vrmModelUrl, setVrmModelUrl] = useState('/models/sample.vrm'); // Assumes sample.vrm is in public/models/
   const [loadError, setLoadError] = useState(null); // For displaying errors to the user
 
   useEffect(() => {

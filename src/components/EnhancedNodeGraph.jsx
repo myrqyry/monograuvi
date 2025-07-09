@@ -480,18 +480,31 @@ function EnhancedNodeGraph({ audioRef }) {
     
     // Override link selection behavior
     const originalOnMouseDown = graphCanvas.onMouseDown;
-    graphCanvas.onMouseDown = function(e) {
-      const link = this.getLink(e.clientX, e.clientY);
-      if (link && e.shiftKey) {
+    graphCanvas.onMouseDown = function(event) { // Changed e to event for clarity with .call
+      // 'this' inside this function will be the LGraphCanvas instance (graphCanvas)
+      // because it's called as graphCanvas.onMouseDown by LiteGraph's internal processMouseDown.
+      // So, 'this.getLink' should be correct if 'getLink' is a valid method of LGraphCanvas.
+      // However, to be absolutely certain and avoid any potential 'this' context issues
+      // if LiteGraph's internal calling pattern changes or is misremembered,
+      // we can use the 'graphCanvas' variable from the closure, which is guaranteed
+      // to be the LGraphCanvas instance we're operating on.
+      const link = graphCanvas.getLink(event.clientX, event.clientY); // Use graphCanvas from closure
+
+      if (link && event.shiftKey) {
         // Multi-select links
         if (!selectedLinks.includes(link)) {
           selectedLinks.push(link);
         }
-        return true;
-      } else if (!e.shiftKey) {
+        // It's important to let LiteGraph know if we handled the event
+        // Returning true might stop further processing in some LiteGraph versions.
+        // For link selection, usually, we don't want to stop the event if it's just for selection.
+        // Let's see LiteGraph's default behavior. If it causes issues, we can return true.
+      } else if (!event.shiftKey && !link) { // Only clear selection if not clicking a link or shift-clicking
         selectedLinks = [];
       }
-      return originalOnMouseDown.call(this, e);
+      // Always call the original onMouseDown to ensure default behaviors are maintained.
+      // Pass the correct 'this' context (the LGraphCanvas instance).
+      return originalOnMouseDown.call(graphCanvas, event);
     };
     
     // Add batch operations to context menu
