@@ -488,7 +488,7 @@ function EnhancedNodeGraph({ audioRef }) {
       // if LiteGraph's internal calling pattern changes or is misremembered,
       // we can use the 'graphCanvas' variable from the closure, which is guaranteed
       // to be the LGraphCanvas instance we're operating on.
-      const link = graphCanvas.getLink(event.clientX, event.clientY); // Use graphCanvas from closure
+      const link = graphCanvas.getLinkOnPos(event.clientX, event.clientY); // Changed to getLinkOnPos
 
       if (link && event.shiftKey) {
         // Multi-select links

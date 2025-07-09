@@ -55,26 +55,43 @@ class AudioProcessor:
         features = {}
         
         try:
-            # Spectral features
             loop = asyncio.get_event_loop()
-            spectral_centroids = await loop.run_in_executor(None, librosa.feature.spectral_centroid, audio_data, self.sample_rate, self.hop_length)[0]
-            spectral_rolloff = await loop.run_in_executor(None, librosa.feature.spectral_rolloff, audio_data, self.sample_rate, self.hop_length)[0]
-            spectral_bandwidth = await loop.run_in_executor(None, librosa.feature.spectral_bandwidth, audio_data, self.sample_rate, self.hop_length)[0]
-            zero_crossing_rate = await loop.run_in_executor(None, librosa.feature.zero_crossing_rate, audio_data, self.hop_length)[0]
+
+            # Spectral features
+            # librosa.feature.spectral_centroid(y=None, sr=22050, S=None, n_fft=2048, hop_length=512, freq=None, win_length=None, window='hann', center=True, pad_mode='constant', Real=False, aggregate=None, amin=1e-10, rolloff_min_energy=0.0001)
+            # Note: y is the first positional argument. audio_data is y.
+            _spectral_centroid_partial = functools.partial(librosa.feature.spectral_centroid, sr=self.sample_rate, hop_length=self.hop_length)
+            spectral_centroids = (await loop.run_in_executor(None, _spectral_centroid_partial, audio_data))[0]
+
+            _spectral_rolloff_partial = functools.partial(librosa.feature.spectral_rolloff, sr=self.sample_rate, hop_length=self.hop_length)
+            spectral_rolloff = (await loop.run_in_executor(None, _spectral_rolloff_partial, audio_data))[0]
+
+            _spectral_bandwidth_partial = functools.partial(librosa.feature.spectral_bandwidth, sr=self.sample_rate, hop_length=self.hop_length)
+            spectral_bandwidth = (await loop.run_in_executor(None, _spectral_bandwidth_partial, audio_data))[0]
+
+            # librosa.feature.zero_crossing_rate(y, *, frame_length=2048, hop_length=512, center=True, pad=True, threshold=1e-10, **kwargs)
+            _zero_crossing_rate_partial = functools.partial(librosa.feature.zero_crossing_rate, hop_length=self.hop_length)
+            zero_crossing_rate = (await loop.run_in_executor(None, _zero_crossing_rate_partial, audio_data))[0]
             
-            # MFCC features
-            mfccs = await loop.run_in_executor(None, librosa.feature.mfcc, audio_data, self.sample_rate, 13, self.hop_length)
+            # MFCC features: librosa.feature.mfcc(y=None, sr=22050, S=None, n_mfcc=20, dct_type=2, norm='ortho', lifter=0, **kwargs)
+            # audio_data is y, self.sample_rate is sr, 13 is n_mfcc, self.hop_length is hop_length
+            _mfcc_partial = functools.partial(librosa.feature.mfcc, sr=self.sample_rate, n_mfcc=13, hop_length=self.hop_length)
+            mfccs = await loop.run_in_executor(None, _mfcc_partial, audio_data)
             
-            # Chroma features
-            chroma = await loop.run_in_executor(None, librosa.feature.chroma_stft, audio_data, self.sample_rate, self.hop_length)
+            # Chroma features: librosa.feature.chroma_stft(y=None, sr=22050, S=None, norm=inf, n_fft=2048, hop_length=512, win_length=None, window='hann', center=True, pad_mode='constant', tuning=None, n_chroma=12, cqt_threshold=NOT_SET, **kwargs)
+            _chroma_stft_partial = functools.partial(librosa.feature.chroma_stft, sr=self.sample_rate, hop_length=self.hop_length)
+            chroma = await loop.run_in_executor(None, _chroma_stft_partial, audio_data)
             
-            # Tempo and beat tracking
-            tempo, beats = await loop.run_in_executor(None, librosa.beat.beat_track, audio_data, self.sample_rate, self.hop_length)
+            # Tempo and beat tracking: librosa.beat.beat_track(y=None, sr=22050, onset_envelope=None, hop_length=512, start_bpm=120.0, tightness=100, trim=True, bpm=None, units='frames', aggregate=<function mean at 0x7fe7c177b720>)
+            _beat_track_partial = functools.partial(librosa.beat.beat_track, sr=self.sample_rate, hop_length=self.hop_length)
+            tempo, beats = await loop.run_in_executor(None, _beat_track_partial, audio_data)
             
-            # Onset detection
-            onsets = await loop.run_in_executor(None, librosa.onset.onset_detect, audio_data, self.sample_rate, self.hop_length)
+            # Onset detection: librosa.onset.onset_detect(y=None, sr=22050, onset_envelope=None, hop_length=512, units='frames', backtrack=False, energy=None, **kwargs)
+            _onset_detect_partial = functools.partial(librosa.onset.onset_detect, sr=self.sample_rate, hop_length=self.hop_length)
+            onsets = await loop.run_in_executor(None, _onset_detect_partial, audio_data)
             
-            # Harmonic and percussive separation
+            # Harmonic and percussive separation: librosa.effects.hpss(y, *, kernel_size=31, power=2.0, margin=1.0, **kwargs)
+            # audio_data is y. No other args match self.sample_rate or self.hop_length directly in signature.
             harmonic, percussive = await loop.run_in_executor(None, librosa.effects.hpss, audio_data)
             
             features = {
