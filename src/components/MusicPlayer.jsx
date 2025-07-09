@@ -29,7 +29,8 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     setCurrentTime,
     setIsPlaying,
     setDuration,
-    setAudioMetadata // Will be added to store in the next step
+    setAudioMetadata, // Ensure this is present
+    audioMetadata     // Add audioMetadata here for destructuring
   } = useStore(state => ({
     audioContext: state.audioContext,
     isPlaying: state.isPlaying,
