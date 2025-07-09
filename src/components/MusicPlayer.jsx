@@ -138,7 +138,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const handlePlayPause = () => {
     const audio = audioElementRef.current;
     if (audio) {
-      if (isPlaying) {
+      if (store.isPlaying) { // Use store.isPlaying
         audio.pause();
       } else {
         audio.play();
