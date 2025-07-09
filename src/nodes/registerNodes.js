@@ -1,10 +1,10 @@
 // src/nodes/registerNodes.js
 // import { LGraphNode } from 'litegraph.js'; // Removed this line
 import BaseNode from './BaseNode.js'; // Ensure BaseNode is imported if not already
-import { createAudioNode, AudioNode } from './AudioNode.js';
-import { createVisualNode, VisualNode, VisualTypes } from './VisualNode.js';
-import { createControlNode, ControlNode } from './ControlNode.js';
-import { createOutputNode, OutputNode } from './OutputNode.js';
+import AudioNode, { createAudioNode } from './AudioNode.js'; // Corrected import
+import VisualNode, { createVisualNode, VisualTypes } from './VisualNode.js'; // Corrected import
+import ControlNode, { createControlNode } from './ControlNode.js'; // Corrected import
+import OutputNode, { createOutputNode } from './OutputNode.js'; // Corrected import
 import DanceMotionNode from './DanceMotionNode.js';
 import PlayheadNode from './PlayheadNode.js';
 import { QuickConnection } from '../utils/QuickConnection';
