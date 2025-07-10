@@ -15,6 +15,7 @@ import 'react-toastify/dist/ReactToastify.css';  // Import Toastify CSS
 
 function App() {
   const [libraryVisible, setLibraryVisible] = useState(true);
+  const [isVRMViewerVisible, setIsVRMViewerVisible] = useState(true); // State for VRM viewer visibility
   const [theme, setTheme] = useState('catppuccin-mocha');
   const audioRef = useRef(null);
   const setAudioContext = useStore(state => state.setAudioContext);
@@ -27,6 +28,10 @@ function App() {
       setLocalAudioContext(newAudioContext);
       setAudioContext(newAudioContext);
     }
+  };
+
+  const toggleVRMViewerVisibility = () => {
+    setIsVRMViewerVisible(prev => !prev);
   };
 
   return (
@@ -43,11 +48,23 @@ function App() {
           <button 
             onClick={() => setLibraryVisible(!libraryVisible)}
             className="toggle-library-btn"
+            title={libraryVisible ? "Hide Node Library" : "Show Node Library"}
           >
             {libraryVisible ? (
               <i className="ri-layout-left-line"></i>
             ) : (
               <i className="ri-layout-grid-line"></i>
+            )}
+          </button>
+          <button
+            onClick={toggleVRMViewerVisibility}
+            className="toggle-vrm-viewer-btn" // Added a class for potential specific styling
+            title={isVRMViewerVisible ? "Hide VRM Viewer" : "Show VRM Viewer"}
+          >
+            {isVRMViewerVisible ? (
+              <i className="ri-user-voice-fill"></i> // Icon for when VRM viewer is visible
+            ) : (
+              <i className="ri-user-voice-line"></i> // Icon for when VRM viewer is hidden
             )}
           </button>
           <h1 className="app-title">monograuvi</h1>
@@ -62,12 +79,14 @@ function App() {
             <MotionLibraryDisplay /> {/* Added this line */}
           </div>
         )}
-        <div className={`graph-area ${libraryVisible ? '' : 'full-width'}`}>
+        <div className={`graph-area ${libraryVisible ? '' : 'full-width'} ${!isVRMViewerVisible ? 'vrm-closed-expand' : ''}`}>
           <EnhancedNodeGraph audioRef={audioRef} /> {/* Changed this line */}
         </div>
-        <div className="vrm-viewer-area"> {/* Added container for VRMViewer */}
-          <VRMViewer />
-        </div>
+        {isVRMViewerVisible && (
+          <div className="vrm-viewer-area"> {/* Added container for VRMViewer */}
+            <VRMViewer toggleVisibility={toggleVRMViewerVisibility} />
+          </div>
+        )}
       </div>
 
       <div className="control-bar-container">

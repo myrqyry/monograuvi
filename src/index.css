@@ -137,6 +137,28 @@
   width: 100%;
 }
 
+/* Styles for when VRM viewer is closed, graph area should expand */
+.graph-area.vrm-closed-expand {
+  /* Assuming VRM viewer is on the right. If it's a different layout, adjust accordingly. */
+  /* This might need to be more specific if main-content is not a simple flex row. */
+  /* For a flex layout, if vrm-viewer-area is display:none, graph-area should naturally expand if it has flex-grow:1 */
+  /* If fixed widths are involved, this might need to adjust the width of graph-area. */
+  /* For now, assuming flex-grow handles it. Add specific width or grid-column changes if needed. */
+}
+
+.vrm-viewer-area {
+  /* Default width for the VRM viewer area, adjust as needed */
+  /* For example, if using flex basis: */
+  /* flex-basis: 320px; */
+  /* Or if using fixed width: */
+  /* width: 320px; */
+  /* Ensure it doesn't shrink if content is small: */
+  /* flex-shrink: 0; */
+  /* Add transition for smooth open/close if desired, though visibility toggle is instant */
+  /* transition: width 0.3s ease, opacity 0.3s ease; */
+}
+
+
 .control-bar-container {
   @apply flex border-t;
   border-color: var(--border-color);

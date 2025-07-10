@@ -7,7 +7,7 @@ import MotionLibrary from '../lib/MotionLibrary';
 import useStore from '../store';
 import Playhead from '../lib/Playhead'; // Added Playhead
 
-const VRMViewer = () => {
+const VRMViewer = ({ toggleVisibility }) => { // Added toggleVisibility prop
   const mountRef = useRef(null);
   const vrmRef = useRef(null);
   const mixerRef = useRef(null);
@@ -371,109 +371,160 @@ const VRMViewer = () => {
     }
   };
 
+  // Basic Tailwind classes for buttons, inputs, labels - can be customized further
+  const labelClass = "block text-sm font-medium text-text-secondary mb-1";
+  const inputClass = "block w-full text-sm text-text-primary bg-bg-input border border-border-input rounded-md shadow-sm focus:ring-accent-primary focus:border-accent-primary p-2";
+  const buttonClass = "px-3 py-1.5 text-sm font-medium rounded-md shadow-sm text-text-button bg-button-primary hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary disabled:opacity-50";
+  const selectClass = `${inputClass}`; // Select can use similar styling to input
+
   return (
-    <div>
-      <div style={{ marginBottom: '10px', padding: '10px', border: '1px solid #ccc' }}>
-        <h3>VRM Loader & Motion Controls</h3>
-        <div style={{ marginBottom: '10px' }}>
-          <label htmlFor="vrm-loader-input">Load VRM Model (.vrm): </label>
-          <input
-            type="file"
-            id="vrm-loader-input"
-            accept=".vrm"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                const file = e.target.files[0];
-                const objectURL = URL.createObjectURL(file);
-                // Revoke previous object URL if it exists and is a blob URL, to prevent memory leaks
-                if (vrmModelUrl && vrmModelUrl.startsWith('blob:')) {
+    <div className="vrm-viewer-panel bg-bg-base border border-border-color rounded-lg shadow-lg flex flex-col h-full text-text-primary overflow-hidden">
+      {/* Header */}
+      <div className="panel-header flex items-center justify-between p-2 border-b border-border-color bg-bg-surface">
+        <h2 className="text-md font-semibold text-text-primary flex items-center">
+          <i className="ri-user-voice-line mr-2 text-accent-primary"></i>
+          VRM Viewer
+        </h2>
+        <button
+          onClick={toggleVisibility}
+          className="p-1 rounded-md hover:bg-bg-hover text-text-secondary hover:text-text-primary"
+          title="Close VRM Viewer"
+        >
+          <i className="ri-close-line text-lg"></i>
+        </button>
+      </div>
+
+      {/* Content Area - Made scrollable */}
+      <div className="flex-grow p-3 space-y-4 overflow-y-auto">
+        {/* VRM Loader & Motion Controls Section */}
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="vrm-loader-input" className={labelClass}>Load VRM Model (.vrm):</label>
+            <input
+              type="file"
+              id="vrm-loader-input"
+              accept=".vrm"
+              className={`${inputClass} file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-button-secondary file:text-text-button hover:file:bg-button-secondary-hover`}
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  const file = e.target.files[0];
+                  const objectURL = URL.createObjectURL(file);
+                  if (vrmModelUrl && vrmModelUrl.startsWith('blob:')) {
                     URL.revokeObjectURL(vrmModelUrl);
+                  }
+                  setVrmModelUrl(objectURL);
+                  e.target.value = null;
                 }
-                setVrmModelUrl(objectURL);
-                e.target.value = null; // Reset file input
-              }
-            }}
-          />
-        </div>
+              }}
+            />
+          </div>
 
-        {loadError && <div style={{ color: 'red', marginBottom: '10px', padding: '5px', border: '1px solid red', backgroundColor: '#ffe0e0' }}>Error: {loadError}</div>}
+          {loadError && (
+            <div className="p-2 text-sm bg-error-bg text-error-text border border-error-border rounded-md">
+              Error: {loadError}
+            </div>
+          )}
 
-        <div style={{ marginBottom: '10px' }}>
-          <label htmlFor="motion-select">Select Motion (for preview/adding): </label>
-          <select
-            id="motion-select"
-            value={selectedMotionId}
-            onChange={handleMotionSelectChange}
-            disabled={!vrmRef.current} // Disable if no VRM loaded
-          >
-            <option value="">-- Select a motion --</option>
-            {availableMotions.map((motion) => (
-              <option key={motion.id} value={motion.id}>
-                {motion.name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={handleAddMotionToTimeline}
-            style={{ marginLeft: '10px' }}
-            disabled={!selectedMotionId || !vrmRef.current}
-          >
-            Add Selected to Timeline
-          </button>
-          <button
-            onClick={() => {
-              if (selectedMotionId && motionLibrary && vrmRef.current) {
-                const motion = motionLibrary.getMotionById(selectedMotionId);
-                if (motion) memoizedPlayVRMMotion(motion.url, 0, motion.duration || 0);
-              }
-            }}
-            style={{ marginLeft: '10px' }}
-            disabled={!selectedMotionId || !vrmRef.current}
-          >
-            Preview Selected
-          </button>
-        </div>
-        <div>
-            <h4>Timeline Controls</h4>
-            <button
-                onClick={() => playheadInstance?.start()}
-                disabled={isDancePlaying || danceBlocks.length === 0 || !vrmRef.current}
-            >Play Timeline</button>
-            <button
-                onClick={() => playheadInstance?.stop()}
-                disabled={!isDancePlaying || !vrmRef.current}
-                style={{ marginLeft: '5px' }}
-            >Stop Timeline</button>
-            <button
-                onClick={() => playheadInstance?.reset()}
+          <div>
+            <label htmlFor="motion-select" className={labelClass}>Select Motion (for preview/adding):</label>
+            <div className="flex items-center space-x-2">
+              <select
+                id="motion-select"
+                value={selectedMotionId}
+                onChange={handleMotionSelectChange}
                 disabled={!vrmRef.current}
-                style={{ marginLeft: '5px' }}
-            >Reset Timeline (to 0s)</button>
-            <span style={{ marginLeft: '15px', fontFamily: 'monospace' }}>Time: {playheadTime.toFixed(2)}s</span>
+                className={`${selectClass} flex-grow`}
+              >
+                <option value="">-- Select a motion --</option>
+                {availableMotions.map((motion) => (
+                  <option key={motion.id} value={motion.id}>
+                    {motion.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  if (selectedMotionId && motionLibrary && vrmRef.current) {
+                    const motion = motionLibrary.getMotionById(selectedMotionId);
+                    if (motion) memoizedPlayVRMMotion(motion.url, 0, motion.duration || 0);
+                  }
+                }}
+                className={`${buttonClass} bg-button-secondary text-text-button`}
+                disabled={!selectedMotionId || !vrmRef.current}
+                title="Preview Selected Motion"
+              >
+                <i className="ri-play-circle-line"></i>
+              </button>
+              <button
+                onClick={handleAddMotionToTimeline}
+                className={buttonClass}
+                disabled={!selectedMotionId || !vrmRef.current}
+                title="Add Selected Motion to Timeline"
+              >
+                <i className="ri-add-line"></i> Timeline
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div ref={mountRef} style={{ width: '100%', height: '300px', border: '1px solid black', backgroundColor: '#eee' }}>
-        {!vrmRef.current && !loadError && <div style={{padding: '10px', color: '#555'}}>Load a VRM model using the button above.</div>}
-        {/* Error during model load is shown above, this is more for initial state or if model becomes null */}
-      </div>
+        {/* Timeline Controls Section */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-text-secondary">Timeline Controls</h4>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => playheadInstance?.start()}
+              disabled={isDancePlaying || danceBlocks.length === 0 || !vrmRef.current}
+              className={buttonClass}
+              title="Play Timeline"
+            ><i className="ri-play-line"></i></button>
+            <button
+              onClick={() => playheadInstance?.stop()}
+              disabled={!isDancePlaying || !vrmRef.current}
+              className={buttonClass}
+              title="Stop Timeline"
+            ><i className="ri-stop-line"></i></button>
+            <button
+              onClick={() => playheadInstance?.reset()}
+              disabled={!vrmRef.current}
+              className={buttonClass}
+              title="Reset Timeline to 0s"
+            ><i className="ri-rewind-start-fill"></i></button>
+            <span className="text-xs font-mono text-text-secondary p-1.5 bg-bg-input rounded-md">
+              Time: {playheadTime.toFixed(2)}s
+            </span>
+          </div>
+        </div>
 
-      <div style={{ marginTop: '10px', padding: '10px', border: '1px solid #ccc' }}>
-        <h3>Dance Timeline (Simple View)</h3>
-        {danceBlocks.length === 0 ? (
-          <p>Timeline is empty. Add motions using the controls above.</p>
-        ) : (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {danceBlocks.map((block) => (
-              <li key={block.id} style={{ marginBottom: '5px', padding: '5px', background: '#f0f0f0' }}>
-                <strong>ID:</strong> {block.motionId} ({motionLibrary?.getMotionById(block.motionId)?.name}) <br />
-                <strong>Start:</strong> {block.startTime.toFixed(1)}s,
-                <strong>Duration:</strong> {block.duration.toFixed(1)}s <br />
-                {/* Add a remove button later if needed */}
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* Three.js Canvas Mount Point */}
+        {/* Ensure mountRef div itself doesn't add extra padding if canvas handles it */}
+        <div
+          ref={mountRef}
+          className="w-full h-64 border border-border-input rounded-md bg-bg-surface overflow-hidden" // Fixed height, adjust as needed
+        >
+          {!vrmRef.current && !loadError && (
+            <div className="flex items-center justify-center h-full text-text-secondary text-sm">
+              Load a VRM model using the button above.
+            </div>
+          )}
+        </div>
+
+        {/* Dance Timeline (Simple View) Section */}
+        <div>
+          <h4 className="text-sm font-medium text-text-secondary mb-1">Dance Timeline Blocks</h4>
+          {danceBlocks.length === 0 ? (
+            <p className="text-xs text-text-secondary">Timeline is empty. Add motions using the controls above.</p>
+          ) : (
+            <ul className="space-y-1 max-h-48 overflow-y-auto p-1 bg-bg-input rounded-md">
+              {danceBlocks.map((block) => (
+                <li key={block.id} className="p-1.5 bg-bg-surface rounded text-xs border border-border-input">
+                  <strong>ID:</strong> {motionLibrary?.getMotionById(block.motionId)?.name || block.motionId} <br />
+                  <strong>Start:</strong> {block.startTime.toFixed(1)}s,
+                  <strong>Duration:</strong> {block.duration.toFixed(1)}s
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
