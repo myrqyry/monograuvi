@@ -367,7 +367,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       <div className={`music-player ${showLoadModal ? 'disabled' : ''}`}>
         <div className="player-left">
           <button onClick={handlePlayPause} className="play-pause-btn">
-            {isPlaying ? (
+            {store.isPlaying ? (
               <i className="ri-pause-fill"></i>
             ) : (
               <i className="ri-play-fill"></i>
@@ -387,7 +387,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
               {trackArtist || 'Unknown Artist'}
             </div>
             <div className="time-display">
-              {formatTime(currentTime)} / {formatTime(duration)}
+              {formatTime(store.currentTime)} / {formatTime(store.duration)}
             </div>
           </div>
         </div>
@@ -451,9 +451,9 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
             <div className="supported-formats">
               <span>Supported formats: MP3, WAV, M4A, FLAC</span>
             </div>
-            {audioMetadata?.error && !analysisError && ( // Show initial load error here if any
+            {store.audioMetadata?.error && !analysisError && ( // Show initial load error here if any
               <p style={{ color: 'var(--color-error)', fontSize: '12px', marginTop: '10px' }}>
-                Previous analysis attempt failed: {audioMetadata.error}
+                Previous analysis attempt failed: {store.audioMetadata.error}
               </p>
             )}
           </div>
