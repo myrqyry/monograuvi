@@ -19,33 +19,58 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const [showLoadModal, setShowLoadModal] = useState(true);
   const [audioUrl, setAudioUrl] = useState(null);
   
+// storeSelector defined outside the component for stability
+const storeSelector = state => ({
+  audioContext: state.audioContext,
+  isPlaying: state.isPlaying,
+  currentTime: state.currentTime,
+  duration: state.duration,
+  setAudioBuffer: state.setAudioBuffer,
+  setCurrentTime: state.setCurrentTime,
+  setIsPlaying: state.setIsPlaying,
+  setDuration: state.setDuration,
+  setAudioMetadata: state.setAudioMetadata,
+  audioMetadata: state.audioMetadata,
+  setAudioContext: state.setAudioContext
+});
+
+function MusicPlayer({ audioRef, onAudioLoad }) {
+  const audioElementRef = useRef(null);
+  const titleRef = useRef(null);
+  const artistRef = useRef(null);
+  const [trackTitle, setTrackTitle] = useState('No Track Loaded');
+  const [trackArtist, setTrackArtist] = useState('');
+  const [volume, setVolume] = useState(1);
+  const [titleNeedsScroll, setTitleNeedsScroll] = useState(false);
+  const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(true);
+  const [audioUrl, setAudioUrl] = useState(null);
+
   // Get state and actions from store
-  // Using explicit store object to debug setAudioContext availability
-  const storeSelector = state => ({
-    audioContext: state.audioContext,
-    isPlaying: state.isPlaying,
-    currentTime: state.currentTime,
-    duration: state.duration,
-    setAudioBuffer: state.setAudioBuffer,
-    setCurrentTime: state.setCurrentTime,
-    setIsPlaying: state.setIsPlaying,
-    setDuration: state.setDuration,
-    setAudioMetadata: state.setAudioMetadata,
-    audioMetadata: state.audioMetadata,
-    setAudioContext: state.setAudioContext
-  });
-  const store = useStore(storeSelector);
+  const {
+    audioContext,
+    isPlaying,
+    currentTime,
+    duration,
+    setAudioBuffer,
+    setCurrentTime,
+    setIsPlaying,
+    setDuration,
+    setAudioMetadata,
+    audioMetadata,
+    setAudioContext
+  } = useStore(storeSelector);
 
   // Extract bpm and key for display, handling potential null values
   let displayBpm = 'N/A';
-  if (typeof store.audioMetadata?.tempo === 'number' && !isNaN(store.audioMetadata.tempo)) {
-    displayBpm = Math.round(store.audioMetadata.tempo);
-  } else if (store.audioMetadata?.tempo) {
-    displayBpm = String(store.audioMetadata.tempo);
+  if (typeof audioMetadata?.tempo === 'number' && !isNaN(audioMetadata.tempo)) {
+    displayBpm = Math.round(audioMetadata.tempo);
+  } else if (audioMetadata?.tempo) {
+    displayBpm = String(audioMetadata.tempo);
   }
 
-  const displayKey = store.audioMetadata?.key || 'N/A';
-  const analysisError = store.audioMetadata?.error;
+  const displayKey = audioMetadata?.key || 'N/A';
+  const analysisError = audioMetadata?.error;
 
 
   // Setup HTML5 audio element
@@ -54,23 +79,23 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     if (!audio) return;
 
     const handleLoadedMetadata = () => {
-      store.setDuration(audio.duration);
+      setDuration(audio.duration);
     };
 
     const handleTimeUpdate = () => {
-      store.setCurrentTime(audio.currentTime);
+      setCurrentTime(audio.currentTime);
     };
 
-    const handlePlay = () => store.setIsPlaying(true);
-    const handlePause = () => store.setIsPlaying(false);
-    const handleEnded = () => store.setIsPlaying(false);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
 
     const handleLoadedData = async () => {
-      if (store.audioContext && audio.src) {
+      if (audioContext && audio.src) {
         try {
           const arrayBuffer = await fetch(audio.src).then(res => res.arrayBuffer());
-          const decodedAudioBuffer = await store.audioContext.decodeAudioData(arrayBuffer);
-          store.setAudioBuffer(decodedAudioBuffer);
+          const decodedAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          setAudioBuffer(decodedAudioBuffer);
           console.log('MusicPlayer: AudioBuffer set in store.', {
             duration: decodedAudioBuffer.duration,
             length: decodedAudioBuffer.length,
@@ -114,7 +139,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [store.audioContext, store.setAudioBuffer, store.setCurrentTime, store.setIsPlaying, store.setDuration, volume, audioRef, store]); // Added store to deps
+  }, [audioContext, setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]); // Specific store values/functions in deps
 
   // Check if text needs scrolling when title or artist changes
   useEffect(() => {
@@ -138,7 +163,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const handlePlayPause = () => {
     const audio = audioElementRef.current;
     if (audio) {
-      if (store.isPlaying) { // Use store.isPlaying
+      if (isPlaying) { // Use destructured isPlaying
         audio.pause();
       } else {
         audio.play();
@@ -157,12 +182,12 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     const file = e.target.files[0];
     if (file) {
       // Ensure AudioContext is initialized or resumed
-      if (!store.audioContext) {
+      if (!audioContext) { // Use destructured audioContext
         const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        store.setAudioContext(newAudioContext);
+        setAudioContext(newAudioContext); // Use destructured setAudioContext
         console.log("AudioContext initialized from MusicPlayer file change.");
-      } else if (store.audioContext.state === 'suspended') {
-        store.audioContext.resume().then(() => {
+      } else if (audioContext.state === 'suspended') { // Use destructured audioContext
+        audioContext.resume().then(() => { // Use destructured audioContext
           console.log("AudioContext resumed from MusicPlayer file change.");
         }).catch(err => console.error("Error resuming AudioContext:", err));
       }
@@ -228,19 +253,19 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
           error: null // Clear any previous error on success
         };
 
-        if (store.setAudioMetadata) { // Use store.setAudioMetadata
-          store.setAudioMetadata(metadata);
+        if (setAudioMetadata) { // Use destructured setAudioMetadata
+          setAudioMetadata(metadata);
         }
 
         if (features?.duration && features.duration !== currentGlobalDuration) {
-          store.setDuration(features.duration); // Use store.setDuration
+          setDuration(features.duration); // Use destructured setDuration
         }
         console.log('Audio analysis successful (axios):', metadata);
       } else {
         // This case might be less common if backend consistently returns error statuses for failures
         console.error('Audio analysis returned success status but missing results (axios):', result);
-        if (store.setAudioMetadata) { // Use store.setAudioMetadata
-          store.setAudioMetadata({
+        if (setAudioMetadata) { // Use destructured setAudioMetadata
+          setAudioMetadata({
             key: 'N/A',
             tempo: 'N/A',
             duration: currentGlobalDuration,
@@ -256,8 +281,8 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       // Ensure audioMetadata in store reflects an error state if not already set by interceptor
       // This is a bit defensive, as the interceptor should handle it.
       const currentStoreError = useStore.getState().audioMetadata.error; // Can still use useStore.getState() here
-      if (store.setAudioMetadata && !currentStoreError) { // Use store.setAudioMetadata
-         store.setAudioMetadata({
+      if (setAudioMetadata && !currentStoreError) { // Use destructured setAudioMetadata
+         setAudioMetadata({ // Use destructured setAudioMetadata
             key: 'Error', // Or N/A
             tempo: 'N/A',
             duration: currentGlobalDuration,
@@ -367,7 +392,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       <div className={`music-player ${showLoadModal ? 'disabled' : ''}`}>
         <div className="player-left">
           <button onClick={handlePlayPause} className="play-pause-btn">
-            {store.isPlaying ? (
+            {isPlaying ? ( // Use destructured isPlaying
               <i className="ri-pause-fill"></i>
             ) : (
               <i className="ri-play-fill"></i>
@@ -387,7 +412,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
               {trackArtist || 'Unknown Artist'}
             </div>
             <div className="time-display">
-              {formatTime(store.currentTime)} / {formatTime(store.duration)}
+              {formatTime(currentTime)} / {formatTime(duration)} {/* Use destructured currentTime and duration */}
             </div>
           </div>
         </div>
@@ -451,9 +476,9 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
             <div className="supported-formats">
               <span>Supported formats: MP3, WAV, M4A, FLAC</span>
             </div>
-            {store.audioMetadata?.error && !analysisError && ( // Show initial load error here if any
+            {audioMetadata?.error && !analysisError && ( // Use destructured audioMetadata
               <p style={{ color: 'var(--color-error)', fontSize: '12px', marginTop: '10px' }}>
-                Previous analysis attempt failed: {store.audioMetadata.error}
+                Previous analysis attempt failed: {audioMetadata.error} {/* Use destructured audioMetadata */}
               </p>
             )}
           </div>
