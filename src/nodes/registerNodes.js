@@ -7,6 +7,7 @@ import ControlNode, { createControlNode } from './ControlNode.js'; // Corrected 
 import OutputNode, { createOutputNode } from './OutputNode.js'; // Corrected import
 import DanceMotionNode from './DanceMotionNode.js';
 import PlayheadNode from './PlayheadNode.js';
+import { LyricTranscriberNode } from './audio/LyricTranscriberNode.js'; // Import the new node
 import { QuickConnection } from '../utils/QuickConnection';
 
 // Generic function to register BaseNode instances with LiteGraph
@@ -255,6 +256,13 @@ export function registerAllNodes() {
   registerBaseNodeAsLiteGraphNode(DanceMotionNode, "animation/dancemotion", "Dance Motion");
   registerBaseNodeAsLiteGraphNode(PlayheadNode, "global/playhead", "Playhead");
 
+  // Register LyricTranscriberNode - it's not a BaseNode subclass, so direct registration
+  const LiteGraph = window.LiteGraph;
+  if (LiteGraph && LyricTranscriberNode) {
+    LiteGraph.registerNodeType("audio/lyric_transcriber", LyricTranscriberNode);
+  }
+
+
   // Basic Math Nodes (Simplified - assuming they might become BaseNode subclasses or use a simple registration)
   // For now, keeping them as they were if they don't fit BaseNode structure easily
   function MathAddSimple() {
@@ -291,8 +299,9 @@ export function registerAllNodes() {
 export const nodeTypeMapping = {
   // Audio nodes
   "audio-source": "audio/source",
-  "audio-analyser": "audio/analyser", 
+  "audio-analyser": "audio/analyser",
   "audio-filter": "audio/filter",
+  "lyric-transcriber": "audio/lyric_transcriber", // Added mapping
   "beat-detector": "audio/beat-detector",
   "spectral-analyser": "audio/spectral-analyser",
   "pitch-detector": "audio/pitch-detector",
@@ -345,7 +354,7 @@ export const nodeTypeMapping = {
 // Node categories for organized display
 export const nodeCategories = {
   Audio: [
-    "audio-source", "audio-analyser", "audio-filter", "beat-detector",
+    "audio-source", "audio-analyser", "audio-filter", "lyric-transcriber", "beat-detector",
     "spectral-analyser", "pitch-detector", "key-detector", "mood-analyser"
   ],
   Visual: [
@@ -375,6 +384,7 @@ export const nodeDescriptions = {
   "audio-source": "Outputs raw audio and volume level.",
   "audio-analyser": "Analyzes audio for frequency, time data, RMS, and peak.",
   "audio-filter": "Applies various filter types to audio.",
+  "lyric-transcriber": "Transcribes lyrics from audio using a Whisper model.",
   "beat-detector": "Detects beats, BPM, and onsets in audio.",
   "spectral-analyser": "Extracts spectral features like centroid, rolloff, MFCC, chroma.",
   "pitch-detector": "Detects pitch, note, and clarity of audio.",
