@@ -2,6 +2,10 @@
 import { create } from 'zustand';
 
 const useStore = create((set, get) => ({
+  // --- Editor State ---
+  editorType: 'litegraph', // Can be 'litegraph' or 'rete'
+  setEditorType: (type) => set({ editorType: type }),
+
   // --- Existing LiteGraph Node graph state ---
   audioContext: null,
   graph: null, // LiteGraph instance

@@ -1,7 +1,7 @@
 // src/App.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import EnhancedNodeGraph from './components/EnhancedNodeGraph'; // Changed this line
+import { ReteEditorComponent } from './components/ReteEditor'; // Import Rete Editor
 import NodeLibrary from './components/NodeLibrary';
 import MotionLibraryDisplay from './components/MotionLibraryDisplay'; // Added this line
 import MusicPlayer from './components/MusicPlayer';
@@ -80,7 +80,8 @@ function App() {
           </div>
         )}
         <div className={`graph-area ${libraryVisible ? '' : 'full-width'} ${!isVRMViewerVisible ? 'vrm-closed-expand' : ''}`}>
-          <EnhancedNodeGraph audioRef={audioRef} /> {/* Changed this line */}
+          {/* <EnhancedNodeGraph audioRef={audioRef} /> */} {/* Comment out LiteGraph editor */}
+          <ReteEditorComponent /> {/* Render Rete.js editor */}
         </div>
         {isVRMViewerVisible && (
           <div className="vrm-viewer-area"> {/* Added container for VRMViewer */}

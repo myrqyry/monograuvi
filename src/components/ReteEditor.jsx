@@ -11,6 +11,9 @@ import { EnvelopeReteNode } from '../nodes/rete/EnvelopeReteNode';
 import { AudioFilterReteNode } from '../nodes/rete/AudioFilterReteNode';
 import { SimpleVisualReteNode } from '../nodes/rete/SimpleVisualReteNode';
 import { AudioSourceReteNode } from '../nodes/rete/AudioSourceReteNode';
+import { LyricTranscriberReteNode } from '../nodes/rete/LyricTranscriberReteNode';
+import { PlayheadReteNode } from '../nodes/rete/PlayheadReteNode';
+import { DanceMotionReteNode } from '../nodes/rete/DanceMotionReteNode'; // Import DanceMotionReteNode
 import useStore from '../store';
 import NumberControlComponent from './rete_controls/NumberControlComponent';
 import SelectControlComponent from './rete_controls/SelectControlComponent';
@@ -33,6 +36,7 @@ function CustomNodeWrapper(props) {
 
 export function ReteEditorComponent() {
   const editorContainerRef = useRef(null);
+  const setEditorType = useStore(state => state.setEditorType);
 
   const addReteNodeToStore = useStore(state => state.addReteNode);
   const removeReteNodeFromStore = useStore(state => state.removeReteNode);
@@ -64,6 +68,8 @@ export function ReteEditorComponent() {
   // Effect for initializing and cleaning up the Rete editor
   useEffect(() => {
     if (!editorContainerRef.current) return null;
+
+    setEditorType('rete'); // Set editor type to Rete on mount
     keepProcessingRef.current = true; // Ensure processing is enabled on setup
 
     const editor = new NodeEditor();
@@ -84,8 +90,12 @@ export function ReteEditorComponent() {
     };
 
     const setupNewNode = (nodeInstance) => {
+      // General setup for all nodes
       if (typeof nodeInstance.setAreaPlugin === 'function') nodeInstance.setAreaPlugin(area);
       if (typeof nodeInstance.setOnPropertyChangeForSync === 'function') nodeInstance.setOnPropertyChangeForSync(handleNodePropertyChangeForZustand);
+      if (typeof nodeInstance.setHistoryRef === 'function') nodeInstance.setHistoryRef(history);
+
+      // Specific setup
       if (typeof nodeInstance.setAudioContext === 'function') {
         if (appAudioContext) { // appAudioContext is from useStore hook now
           nodeInstance.setAudioContext(appAudioContext);
@@ -98,11 +108,14 @@ export function ReteEditorComponent() {
 
     const contextMenu = new ContextMenuPlugin({
       items: ContextMenuPresets.classic.setup([
-        ['Audio Source Node', () => setupNewNode(new AudioSourceReteNode({isPlaying: false, volume: 0.5}))],
-        ['LFO Node', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
-        ['Envelope Node', () => setupNewNode(new EnvelopeReteNode())],
-        ['Audio Filter Node', () => setupNewNode(new AudioFilterReteNode())],
-        ['Simple Visual Node', () => setupNewNode(new SimpleVisualReteNode())],
+        ['Global/Playhead', () => setupNewNode(new PlayheadReteNode())],
+        ['Animation/Dance Motion', () => setupNewNode(new DanceMotionReteNode())],
+        ['Audio/Audio Source', () => setupNewNode(new AudioSourceReteNode({isPlaying: false, volume: 0.5}))],
+        ['Audio/Lyric Transcriber', () => setupNewNode(new LyricTranscriberReteNode())],
+        ['Audio/Audio Filter', () => setupNewNode(new AudioFilterReteNode())],
+        ['Control/LFO', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
+        ['Control/Envelope', () => setupNewNode(new EnvelopeReteNode())],
+        ['Visual/Simple Visual', () => setupNewNode(new SimpleVisualReteNode())],
       ]),
     });
     area.use(contextMenu);
@@ -149,6 +162,10 @@ export function ReteEditorComponent() {
       editor.addPipe(context => {
         if (context.type === 'nodecreated') {
           const node = context.data;
+          // Call onNodeAdded hook if it exists
+          if (typeof node.onNodeAdded === 'function') {
+            node.onNodeAdded();
+          }
           setTimeout(async () => {
             try {
               await area.area.renderNode(node);

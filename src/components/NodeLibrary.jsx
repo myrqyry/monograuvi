@@ -162,6 +162,7 @@ function NodeItem({ node }) {
 
 function NodeLibrary() {
   const addNode = useStore(state => state.addNode);
+  const editorType = useStore(state => state.editorType);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCategories, setExpandedCategories] = useState(
     Object.keys(categoryConfig).reduce((acc, key) => ({ ...acc, [key]: true }), {})
@@ -314,6 +315,16 @@ function NodeLibrary() {
           <i className="ri-search-2-line text-2xl mb-2 block"></i>
           <p>No nodes found matching "{searchTerm}"</p>
           <p className="text-sm mt-1">Try searching for different keywords</p>
+        </div>
+      )}
+
+      {editorType === 'rete' && (
+        <div className="p-4 text-center text-text-secondary bg-bg-mantle border-t-2 border-accent-primary mt-4">
+            <i className="ri-information-line text-2xl mb-2 block text-accent-primary"></i>
+            <h4 className="font-semibold text-text-primary">Rete.js Editor Active</h4>
+            <p className="text-xs mt-1">
+                Node Library is currently disabled. Please add nodes by right-clicking on the graph canvas.
+            </p>
         </div>
       )}
     </div>
