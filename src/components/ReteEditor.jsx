@@ -9,11 +9,33 @@ import { DataflowEngine } from 'rete-engine';
 import { LfoReteNode } from '../nodes/rete/LfoReteNode';
 import { EnvelopeReteNode } from '../nodes/rete/EnvelopeReteNode';
 import { AudioFilterReteNode } from '../nodes/rete/AudioFilterReteNode';
-import { SimpleVisualReteNode } from '../nodes/rete/SimpleVisualReteNode';
 import { AudioSourceReteNode } from '../nodes/rete/AudioSourceReteNode';
 import { LyricTranscriberReteNode } from '../nodes/rete/LyricTranscriberReteNode';
 import { PlayheadReteNode } from '../nodes/rete/PlayheadReteNode';
-import { DanceMotionReteNode } from '../nodes/rete/DanceMotionReteNode'; // Import DanceMotionReteNode
+import { DanceMotionReteNode } from '../nodes/rete/DanceMotionReteNode';
+import { ParticleSystemReteNode } from '../nodes/rete/ParticleSystemReteNode';
+import { WaveformReteNode } from '../nodes/rete/WaveformReteNode';
+import { SpectrumVisualizerReteNode } from '../nodes/rete/SpectrumVisualizerReteNode';
+import { ShaderEffectReteNode } from '../nodes/rete/ShaderEffectReteNode';
+import { GeometryRendererReteNode } from '../nodes/rete/GeometryRendererReteNode';
+import { TextAnimatorReteNode } from '../nodes/rete/TextAnimatorReteNode';
+import { VideoEffectReteNode } from '../nodes/rete/VideoEffectReteNode';
+import { KaleidoscopeReteNode } from '../nodes/rete/KaleidoscopeReteNode';
+import { MandalaReteNode } from '../nodes/rete/MandalaReteNode';
+import { FlowFieldReteNode } from '../nodes/rete/FlowFieldReteNode';
+import { SequencerReteNode } from '../nodes/rete/SequencerReteNode';
+import { RandomReteNode } from '../nodes/rete/RandomReteNode';
+import { ExpressionReteNode } from '../nodes/rete/ExpressionReteNode';
+import { MidiReteNode } from '../nodes/rete/MidiReteNode';
+import { ClockReteNode } from '../nodes/rete/ClockReteNode';
+import { TriggerReteNode } from '../nodes/rete/TriggerReteNode';
+import { VideoRenderReteNode } from '../nodes/rete/VideoRenderReteNode';
+import { AudioRenderReteNode } from '../nodes/rete/AudioRenderReteNode';
+import { StreamOutputReteNode } from '../nodes/rete/StreamOutputReteNode';
+import { FileExportReteNode } from '../nodes/rete/FileExportReteNode';
+import { PreviewReteNode } from '../nodes/rete/PreviewReteNode';
+import { SocialExportReteNode } from '../nodes/rete/SocialExportReteNode';
+import { RealTimeReteNode } from '../nodes/rete/RealTimeReteNode';
 import useStore from '../store';
 import NumberControlComponent from './rete_controls/NumberControlComponent';
 import SelectControlComponent from './rete_controls/SelectControlComponent';
@@ -21,15 +43,8 @@ import CheckboxControlComponent from './rete_controls/CheckboxControlComponent';
 import TextControlComponent from './rete_controls/TextControlComponent';
 import SimpleVisualComponent from './rete_visuals/SimpleVisualComponent';
 
+// A generic CustomNodeWrapper that can be extended
 function CustomNodeWrapper(props) {
-  const { data } = props;
-  if (data instanceof SimpleVisualReteNode) {
-    return (
-      <Presets.classic.Node {...props}>
-        <SimpleVisualComponent data={data} />
-      </Presets.classic.Node>
-    );
-  }
   return <Presets.classic.Node {...props} />;
 }
 
@@ -115,7 +130,22 @@ export function ReteEditorComponent() {
         ['Audio/Audio Filter', () => setupNewNode(new AudioFilterReteNode())],
         ['Control/LFO', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
         ['Control/Envelope', () => setupNewNode(new EnvelopeReteNode())],
-        ['Visual/Simple Visual', () => setupNewNode(new SimpleVisualReteNode())],
+        ['Control/Sequencer', () => setupNewNode(new SequencerReteNode())],
+        ['Control/Random', () => setupNewNode(new RandomReteNode())],
+        ['Control/Expression', () => setupNewNode(new ExpressionReteNode())],
+        ['Control/MIDI', () => setupNewNode(new MidiReteNode())],
+        ['Control/Clock', () => setupNewNode(new ClockReteNode())],
+        ['Control/Trigger', () => setupNewNode(new TriggerReteNode())],
+        ['Visual/Particle System', () => setupNewNode(new ParticleSystemReteNode())],
+        ['Visual/Waveform', () => setupNewNode(new WaveformReteNode())],
+        ['Visual/Spectrum Visualizer', () => setupNewNode(new SpectrumVisualizerReteNode())],
+        ['Visual/Shader Effect', () => setupNewNode(new ShaderEffectReteNode())],
+        ['Visual/3D Geometry', () => setupNewNode(new GeometryRendererReteNode())],
+        ['Visual/Text Animator', () => setupNewNode(new TextAnimatorReteNode())],
+        ['Visual/Video Effect', () => setupNewNode(new VideoEffectReteNode())],
+        ['Visual/Kaleidoscope', () => setupNewNode(new KaleidoscopeReteNode())],
+        ['Visual/Mandala', () => setupNewNode(new MandalaReteNode())],
+        ['Visual/Flow Field', () => setupNewNode(new FlowFieldReteNode())],
       ]),
     });
     area.use(contextMenu);
@@ -241,7 +271,7 @@ export function ReteEditorComponent() {
       await editor.addNode(initialAudioSourceNode);
       await area.translate(initialAudioSourceNode.id, { x: 50, y: 100 });
 
-      const initialVisualNode = setupNewNode(new SimpleVisualReteNode({ baseColor: 'red' }));
+      const initialVisualNode = setupNewNode(new ParticleSystemReteNode());
       await editor.addNode(initialVisualNode);
       await area.translate(initialVisualNode.id, { x: 350, y: 100 });
 
