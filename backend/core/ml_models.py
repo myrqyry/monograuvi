@@ -430,14 +430,16 @@ class MLModelManager:
 
     def _get_model_details(self) -> Dict[str, Any]:
         """Get details of all loaded models."""
-        model = self.models[model_name]
-        if hasattr(model, 'parameters'):
-            # PyTorch model
-            param_count = sum(p.numel() for p in model.parameters())
-            details[f'{model_name}_params'] = param_count
-        else:
-            # Sklearn model
-            details[f'{model_name}_type'] = type(model).__name__
+        details = {}
+        for model_name, model in self.models.items():
+            if hasattr(model, 'parameters'):
+                # PyTorch model
+                param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                details[f'{model_name}_params'] = param_count
+                details[f'{model_name}_device'] = str(next(model.parameters()).device)
+            else:
+                # Sklearn or other model
+                details[f'{model_name}_type'] = type(model).__name__
         return details
 
     async def get_status(self) -> Dict[str, Any]:

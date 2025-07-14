@@ -1,26 +1,42 @@
 // src/App.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ReteEditorComponent } from './components/ReteEditor'; // Import Rete Editor
+import ReteEditorComponent from './components/ReteEditor'; // Import Rete Editor
 import NodeLibrary from './components/NodeLibrary';
-import MotionLibraryDisplay from './components/MotionLibraryDisplay'; // Added this line
+import MotionLibraryDisplay from './components/MotionLibraryDisplay';
 import MusicPlayer from './components/MusicPlayer';
 import ThemeSelector from './components/ThemeSelector';
 import WaveformTimeline from './components/WaveformTimeline';
-import VRMViewer from './components/VRMViewer'; // Import the VRMViewer
 import useStore from './store';
 import './index.css';
-import { ToastContainer } from 'react-toastify'; // Import ToastContainer
-import 'react-toastify/dist/ReactToastify.css';  // Import Toastify CSS
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+// Lazy load VRMViewer component
+const LazyVRMViewer = React.lazy(() => import('./components/VRMViewer'));
 
 function App() {
   const [libraryVisible, setLibraryVisible] = useState(true);
-  const [isVRMViewerVisible, setIsVRMViewerVisible] = useState(true); // State for VRM viewer visibility
+  const [isVRMViewerVisible, setIsVRMViewerVisible] = useState(false); // Start with VRM viewer hidden
+  const [hasVRMNode, setHasVRMNode] = useState(false); // Track if VRM node is added
   const [theme, setTheme] = useState('catppuccin-mocha');
   const audioRef = useRef(null);
   const setAudioContext = useStore(state => state.setAudioContext);
+  const nodes = useStore(state => state.nodes); // Get nodes from store
 
   const [audioContext, setLocalAudioContext] = useState(null);
+
+  // Check if any VRM nodes are in the graph
+  useEffect(() => {
+    const hasVRMNode = nodes.some(node => 
+      node.type && node.type.startsWith('vrm/')
+    );
+    
+    if (hasVRMNode && !isVRMViewerVisible) {
+      setIsVRMViewerVisible(true);
+    }
+    setHasVRMNode(hasVRMNode);
+  }, [nodes, isVRMViewerVisible]);
 
   const initializeAudioContext = () => {
     if (!audioContext) {
@@ -84,8 +100,10 @@ function App() {
           <ReteEditorComponent /> {/* Render Rete.js editor */}
         </div>
         {isVRMViewerVisible && (
-          <div className="vrm-viewer-area"> {/* Added container for VRMViewer */}
-            <VRMViewer toggleVisibility={toggleVRMViewerVisibility} />
+          <div className="vrm-viewer-area">
+            <React.Suspense fallback={<div className="vrm-loading">Loading VRM Viewer...</div>}>
+              <LazyVRMViewer toggleVisibility={toggleVRMViewerVisibility} />
+            </React.Suspense>
           </div>
         )}
       </div>

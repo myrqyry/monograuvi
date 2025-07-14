@@ -2,23 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import useStore from '../store';
 import WaveformTimeline from './WaveformTimeline';
-import axiosInstance from '../api/axiosInstance'; // Import axiosInstance
+import axiosInstance from '../api/axiosInstance';
 
-function MusicPlayer({ audioRef, onAudioLoad }) {
-  const audioElementRef = useRef(null);
-  const titleRef = useRef(null);
-  const artistRef = useRef(null);
-  const [trackTitle, setTrackTitle] = useState('No Track Loaded');
-  const [trackArtist, setTrackArtist] = useState('');
-  const [volume, setVolume] = useState(1);
-  // Local bpm and key will now be primarily driven by the store's audioMetadata
-  // const [bpm, setBpm] = useState(null);
-  // const [key, setKey] = useState(null);
-  const [titleNeedsScroll, setTitleNeedsScroll] = useState(false);
-  const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
-  const [showLoadModal, setShowLoadModal] = useState(true);
-  const [audioUrl, setAudioUrl] = useState(null);
-  
 // storeSelector defined outside the component for stability
 const storeSelector = state => ({
   audioContext: state.audioContext,
@@ -488,6 +473,4 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   );
 }
 
-// Export both the component and handleSeek for use in App
 export default MusicPlayer;
-export { MusicPlayer };

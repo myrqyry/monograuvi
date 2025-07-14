@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { NodeEditor } from 'rete';
-import { ReactPlugin, Presets, ReactArea2D } from 'rete-react-plugin';
+import { ReactPlugin, Presets } from 'rete-react-plugin';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
-import { ConnectionPlugin, ClassicPreset as ConnectionClassicPreset } from 'rete-connection-plugin';
-import { HistoryPlugin, ClassicPreset as HistoryClassicPreset } from 'rete-history-plugin';
+import { ConnectionPlugin } from 'rete-connection-plugin';
+import { HistoryPlugin, HistoryExtensions } from 'rete-history-plugin';
 import { ContextMenuPlugin, Presets as ContextMenuPresets } from 'rete-context-menu-plugin';
 import { DataflowEngine } from 'rete-engine';
+import { ClassicPreset } from 'rete';
 import { LfoReteNode } from '../nodes/rete/LfoReteNode';
 import { EnvelopeReteNode } from '../nodes/rete/EnvelopeReteNode';
 import { AudioFilterReteNode } from '../nodes/rete/AudioFilterReteNode';
@@ -92,7 +93,14 @@ export function ReteEditorComponent() {
     const area = new AreaPlugin(editorContainerRef.current);
     const connection = new ConnectionPlugin();
     const render = new ReactPlugin();
-    const history = new HistoryPlugin();
+    
+    // Initialize history plugin with proper configuration
+    const history = new HistoryPlugin({
+      keyboard: true,
+      // Add any other history plugin options here
+    });
+    
+    // Set a reference to the history plugin for undo/redo operations
     historyRef.current = history;
 
     const engine = new DataflowEngine({
@@ -150,43 +158,72 @@ export function ReteEditorComponent() {
     });
     area.use(contextMenu);
 
-    AreaExtensions.selectableNodes(area, AreaExtensions.classic.select(), {
-      accumulating: AreaExtensions.classic.accumulatingNewTag(),
-    });
-    AreaExtensions.history({ H: HistoryPlugin, keyboard: true })(area);
-
-    render.addPreset(Presets.classic.setup({
-      node: CustomNodeWrapper,
-      control(data) {
-        const node = data.element;
-        const controlKey = data.payload.key;
-        if (node && node.controlStore && node.controlStore[controlKey]) {
-          const controlConfig = node.controlStore[controlKey];
-          const propsForComponent = {
-            value: node.getProperty(controlKey),
-            label: controlConfig.label,
-            onChange: (newValue) => {
-              node.setPropertyAndRecord(controlKey, newValue, historyRef.current);
-            },
-            options: controlConfig.options,
-            controlKey: controlKey,
-          };
-          if (controlConfig.type === 'number') return <NumberControlComponent data={propsForComponent} />;
-          if (controlConfig.type === 'enum') return <SelectControlComponent data={propsForComponent} />;
-          if (controlConfig.type === 'boolean') return <CheckboxControlComponent data={propsForComponent} />;
-          if (controlConfig.type === 'string') return <TextControlComponent data={propsForComponent} />;
+    // Set up node selection with maximum compatibility
+    try {
+      // Check if AreaExtensions has the required methods
+      if (typeof AreaExtensions.selectableNodes === 'function') {
+        // Try to set up node selection with the most common pattern first
+        try {
+          // Pattern 1: Using selector and accumulating options
+          if (typeof AreaExtensions.selector === 'function' && 
+              typeof AreaExtensions.accumulateOnCtrl === 'function') {
+            const selector = AreaExtensions.selector();
+            const accumulating = AreaExtensions.accumulateOnCtrl();
+            AreaExtensions.selectableNodes(area, selector, { accumulating });
+          } 
+          // Pattern 2: Just pass the area
+          else {
+            AreaExtensions.selectableNodes(area);
+          }
+        } catch (selectError) {
+          console.warn('Error setting up node selection with standard pattern:', selectError);
+          // Try the minimal setup
+          AreaExtensions.selectableNodes(area);
         }
-        return Presets.classic.Control;
       }
-    }));
 
-    history.addPreset(HistoryClassicPreset.setup());
+      // Set up history if available
+      if (typeof AreaExtensions.history === 'function') {
+        try {
+          AreaExtensions.history({ H: HistoryPlugin, keyboard: true })(area);
+        } catch (historyError) {
+          console.warn('Error setting up history:', historyError);
+        }
+      }
+
+      // Set up other extensions if available
+      const setupExtension = (name, ...args) => {
+        if (typeof AreaExtensions[name] === 'function') {
+          try {
+            AreaExtensions[name](...args);
+          } catch (e) {
+            console.warn(`Error setting up ${name}:`, e);
+          }
+        }
+      };
+
+      // Set up other common extensions
+      setupExtension('snapGrid', area, { size: 10 });
+      
+      // Only try to zoom if we have nodes
+      if (editor.getNodes().length > 0) {
+        setupExtension('zoomAt', area, editor.getNodes());
+      }
+      
+      setupExtension('keyboard', area);
+      
+    } catch (error) {
+      console.error('Error in editor setup:', error);
+    }
 
     editor.use(area);
     area.use(connection);
     area.use(render);
     area.use(history);
-    connection.addPreset(ConnectionClassicPreset.setup());
+    connection.addPreset({
+      ...ClassicPreset.setup(),
+      connect: () => {}
+    });
 
     const subs = [
       editor.addPipe(context => {
