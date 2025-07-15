@@ -220,10 +220,9 @@ export function ReteEditorComponent() {
     area.use(connection);
     area.use(render);
     area.use(history);
-    connection.addPreset({
-      ...ClassicPreset.setup(),
-      connect: () => {}
-    });
+    connection.addPreset(
+      ConnectionPlugin.Presets.classic.setup()
+    );
 
     const subs = [
       editor.addPipe(context => {
