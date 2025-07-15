@@ -102,13 +102,26 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
         // ... (Ported logic)
         try {
             const { pipeline } = await import('@xenova/transformers');
-            if (!this.transcriberPipeline || this.lastModelName !== this.getProperty('modelName')) {
+            const modelName = this.getProperty('modelName');
+
+            if (!this.transcriberPipeline || this.lastModelName !== modelName) {
                 this.setProperty('status', 'Initializing model...');
                 this.setProperty('progress', 10);
-                this.transcriberPipeline = await pipeline('automatic-speech-recognition', this.getProperty('modelName'), {
-                    progress_callback: (p) => this.handleModelProgress(p)
-                });
-                this.lastModelName = this.getProperty('modelName');
+
+                // Only download the model if it hasn't been downloaded before
+                if (!window.monograuvi_models) {
+                    window.monograuvi_models = {};
+                }
+                if (!window.monograuvi_models[modelName]) {
+                    this.transcriberPipeline = await pipeline('automatic-speech-recognition', modelName, {
+                        progress_callback: (p) => this.handleModelProgress(p)
+                    });
+                    window.monograuvi_models[modelName] = this.transcriberPipeline;
+                } else {
+                    this.transcriberPipeline = window.monograuvi_models[modelName];
+                }
+
+                this.lastModelName = modelName;
             }
 
             this.setProperty('status', 'Transcribing...');
