@@ -21,30 +21,7 @@ function App() {
   const [hasVRMNode, setHasVRMNode] = useState(false); // Track if VRM node is added
   const [theme, setTheme] = useState('catppuccin-mocha');
   const audioRef = useRef(null);
-  const setAudioContext = useStore(state => state.setAudioContext);
-  const nodes = useStore(state => state.nodes); // Get nodes from store
-
   const [audioContext, setLocalAudioContext] = useState(null);
-
-  // Check if any VRM nodes are in the graph
-  useEffect(() => {
-    const hasVRMNode = nodes.some(node => 
-      node.type && node.type.startsWith('vrm/')
-    );
-    
-    if (hasVRMNode && !isVRMViewerVisible) {
-      setIsVRMViewerVisible(true);
-    }
-    setHasVRMNode(hasVRMNode);
-  }, [nodes, isVRMViewerVisible]);
-
-  const initializeAudioContext = () => {
-    if (!audioContext) {
-      const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-      setLocalAudioContext(newAudioContext);
-      setAudioContext(newAudioContext);
-    }
-  };
 
   const toggleVRMViewerVisibility = () => {
     setIsVRMViewerVisible(prev => !prev);
@@ -55,12 +32,6 @@ function App() {
       <div className={`app-container theme-${theme}`}>
         <header className="app-header">
           <div className="flex items-center">
-          <button 
-            onClick={initializeAudioContext}
-            className="initialize-audio-btn"
-          >
-            Initialize Audio
-          </button>
           <button 
             onClick={() => setLibraryVisible(!libraryVisible)}
             className="toggle-library-btn"
@@ -96,7 +67,6 @@ function App() {
           </div>
         )}
         <div className={`graph-area ${libraryVisible ? '' : 'full-width'} ${!isVRMViewerVisible ? 'vrm-closed-expand' : ''}`}>
-          {/* <EnhancedNodeGraph audioRef={audioRef} /> */} {/* Comment out LiteGraph editor */}
           <ReteEditorComponent /> {/* Render Rete.js editor */}
         </div>
         {isVRMViewerVisible && (

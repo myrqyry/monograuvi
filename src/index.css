@@ -1,6 +1,5 @@
 /* src/index.css */
 @import url("https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css");
-@import "./styles/enhanced-node-graph.css";
 
 @tailwind base;
 @tailwind components;
@@ -334,34 +333,6 @@
   background-color: var(--bg-crust);
 }
 
-.litegraph {
-  @apply flex-1;
-  background-color: var(--bg-base);
-  display: block;
-  position: relative;
-}
-
-.litegraph canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
-}
-
-/* LiteGraph dark theme overrides */
-.litegraph .lgraphnode {
-  background-color: var(--node-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-}
-
-.litegraph .lgraphnode .title {
-  background-color: var(--node-header);
-  color: var(--text-primary);
-}
-
-.litegraph .lgraphnode .slot {
-  color: var(--text-secondary);
-}
 
 /* Music Player Styles */
 .music-player {

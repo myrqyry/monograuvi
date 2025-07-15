@@ -13,7 +13,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['litegraph.js', 'wavesurfer.js']
+    exclude: ['wavesurfer.js']
   },
   build: {
     outDir: 'dist',

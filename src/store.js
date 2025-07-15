@@ -3,14 +3,11 @@ import { create } from 'zustand';
 
 const useStore = create((set, get) => ({
   // --- Editor State ---
-  editorType: 'litegraph', // Can be 'litegraph' or 'rete'
+  editorType: 'rete', // Can be 'litegraph' or 'rete'
   setEditorType: (type) => set({ editorType: type }),
 
   // --- Existing LiteGraph Node graph state ---
   audioContext: null,
-  graph: null, // LiteGraph instance
-  nodes: [],   // LiteGraph nodes array
-  lastAddedNode: null,
   
   // --- Rete.js Graph State ---
   reteGraph: {
@@ -37,22 +34,6 @@ const useStore = create((set, get) => ({
     duration: null,
     error: null,
   },
-
-  // --- LiteGraph Node graph actions ---
-  setAudioContext: (context) => set({ audioContext: context }),
-  setGraph: (graph) => set({ graph }), // For LiteGraph instance
-  addNode: (node) => set((state) => ({ // For LiteGraph nodes
-    nodes: [...state.nodes, node],
-    lastAddedNode: node
-  })),
-  updateNodePosition: (nodeId, position) => set((state) => ({ // For LiteGraph nodes
-    nodes: state.nodes.map(node => 
-      node.id === nodeId ? { ...node, position } : node
-    )
-  })),
-  removeNode: (nodeId) => set((state) => ({ // For LiteGraph nodes
-    nodes: state.nodes.filter(node => node.id !== nodeId)
-  })),
 
   // --- Rete.js Graph Actions ---
   // Node data typically: { id: string, label: string, type: string, position: {x:number, y:number}, customData: object }
@@ -176,39 +157,6 @@ const useStore = create((set, get) => ({
     audioMetadata: { ...state.audioMetadata, ...metadata, error: metadata.error || null }
   })),
 
-  // --- LiteGraph Command stack for undo/redo ---
-  // This might need to be re-evaluated or removed if Rete's history plugin becomes the sole source for graph undo/redo
-  undoStack: [],
-  redoStack: [],
-  executeCommand: (command) => {
-    command.execute();
-    set((state) => ({
-      undoStack: [...state.undoStack, command],
-      redoStack: [],
-    }));
-  },
-  undoCommand: () => {
-    const { undoStack, redoStack } = get();
-    if (undoStack.length > 0) {
-      const command = undoStack[undoStack.length - 1];
-      command.undo();
-      set({
-        undoStack: undoStack.slice(0, -1),
-        redoStack: [command, ...redoStack],
-      });
-    }
-  },
-  redoCommand: () => {
-    const { undoStack, redoStack } = get();
-    if (redoStack.length > 0) {
-      const command = redoStack[0];
-      command.execute();
-      set({
-        undoStack: [...undoStack, command],
-        redoStack: redoStack.slice(1),
-      });
-    }
-  },
 }));
 
 export default useStore;
