@@ -229,13 +229,13 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       const result = response.data; // Axios puts response data directly in `data`
 
       if (result.status === 'success' && result.results) {
-        const { key_analysis, features } = result.results;
-
+        const { key_analysis, features, mood_analysis } = result.results; // Now includes mood
         const metadata = {
-          key: key_analysis?.key || 'Unknown',
-          tempo: features?.tempo || null,
-          duration: features?.duration || currentGlobalDuration, // Use analyzed or fallback
-          error: null // Clear any previous error on success
+          key: key_analysis?.key || 'N/A', // Correctly access nested property
+          tempo: features?.tempo ? Math.round(features.tempo) : null,
+          duration: features?.duration || currentGlobalDuration,
+          mood: mood_analysis?.top_mood || 'N/A', // Add mood to metadata
+          error: null
         };
 
         if (setAudioMetadata) { // Use destructured setAudioMetadata

@@ -1,178 +1,104 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import useStore from '../store';
 
-const WaveformTimeline = ({ 
-  height = 60,
-  className = ''
-}) => {
+const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
   const canvasRef = useRef(null);
-  const animationFrameId = useRef(null);
-  
-  // Get state from store
   const { audioBuffer, currentTime, duration, isPlaying } = useStore(state => ({
     audioBuffer: state.audioBuffer,
     currentTime: state.currentTime,
-    duration: state.duration || 1, // Ensure duration is never 0 to avoid division by zero
-    isPlaying: state.isPlaying
+    duration: state.duration || 1,
+    isPlaying: state.isPlaying,
   }));
 
-  // Draw waveform on canvas
-  const drawWaveform = useCallback((canvas, ctx) => {
-    if (!audioBuffer) return;
-    
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !audioBuffer) return;
+    const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
     const data = audioBuffer.getChannelData(0);
     const step = Math.ceil(data.length / width);
     const amp = height / 2;
-    
-    // Clear canvas
+
     ctx.clearRect(0, 0, width, height);
-    
-    // Set waveform style
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.lineWidth = 1;
-    
-    // Draw waveform bars
-    for (let x = 0; x < width; x++) {
-      const start = x * step;
-      const end = Math.min(start + step, data.length);
-      let min = 1, max = -1;
-      
-      for (let i = start; i < end; i++) {
-        const sample = data[i];
-        if (sample < min) min = sample;
-        if (sample > max) max = sample;
-      }
-      
-      const minY = (1 + min) * amp;
-      const maxY = (1 + max) * amp;
-      const barHeight = maxY - minY;
-      
-      if (barHeight > 0) {
-        ctx.fillRect(x, minY, 1, barHeight);
-      }
-    }
-  }, [audioBuffer]);
 
-  // Draw playhead
-  const drawPlayhead = useCallback((canvas, ctx) => {
-    if (!duration) return;
-    
-    const { width, height } = canvas;
-    const x = (currentTime / duration) * width;
-    
-    // Playhead line
-    ctx.strokeStyle = isPlaying ? 'rgba(166, 227, 161, 1)' : 'rgba(255, 255, 255, 0.8)';
-    ctx.lineWidth = 2;
+    // Draw waveform
+    ctx.strokeStyle = 'rgba(200, 200, 220, 0.5)';
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
+    for (let i = 0; i < width; i++) {
+      let min = 1.0;
+      let max = -1.0;
+      for (let j = 0; j < step; j++) {
+        const datum = data[(i * step) + j];
+        if (datum < min) min = datum;
+        if (datum > max) max = datum;
+      }
+      ctx.moveTo(i, (1 + min) * amp);
+      ctx.lineTo(i, (1 + max) * amp);
+    }
     ctx.stroke();
-    
-    // Playhead indicator
-    ctx.fillStyle = isPlaying ? 'rgba(166, 227, 161, 1)' : 'rgba(255, 255, 255, 0.8)';
-    ctx.beginPath();
-    ctx.moveTo(x - 4, 0);
-    ctx.lineTo(x + 4, 0);
-    ctx.lineTo(x, 8);
-    ctx.closePath();
-    ctx.fill();
-  }, [currentTime, duration, isPlaying]);
 
-  // Main render function
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    
-    // Set canvas size
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    canvas.width = rect.width * devicePixelRatio;
-    canvas.height = rect.height * devicePixelRatio;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(devicePixelRatio, devicePixelRatio);
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    
-    // Draw components
-    drawWaveform(canvas, ctx);
-    drawPlayhead(canvas, ctx);
-    
-    // Continue animation if playing
-    if (isPlaying) {
-      animationFrameId.current = requestAnimationFrame(render);
+    // Draw playhead
+    if (duration > 0) {
+      const x = (currentTime / duration) * width;
+      ctx.strokeStyle = '#f5c2e7'; // Catppuccin Pink
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
     }
-  }, [drawPlayhead, drawWaveform, isPlaying]);
+  }, [audioBuffer, currentTime, duration]);
 
-  // Handle window resize
-  const handleResize = useCallback(() => {
-    if (canvasRef.current) {
-      render();
-    }
-  }, [render]);
-
-  // Set up resize observer and initial render
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // Initial render
-    render();
-    
-    // Set up resize observer
-    const resizeObserver = new ResizeObserver(handleResize);
+    const resizeObserver = new ResizeObserver(() => {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        draw();
+    });
     resizeObserver.observe(canvas);
-    
-    // Clean up
-    return () => {
-      resizeObserver.disconnect();
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
-    };
-  }, [render, handleResize]);
+    return () => resizeObserver.disconnect();
+  }, [draw]);
 
-  // Handle play/pause
+
   useEffect(() => {
-    if (isPlaying) {
-      animationFrameId.current = requestAnimationFrame(render);
-    } else if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
-    }
-    
-    return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
+      if (isPlaying) {
+          let animationFrameId;
+          const renderLoop = () => {
+              draw();
+              animationFrameId = requestAnimationFrame(renderLoop);
+          };
+          renderLoop();
+          return () => cancelAnimationFrame(animationFrameId);
+      } else {
+          draw(); // Draw once when paused
       }
-    };
-  }, [isPlaying, render]);
+  }, [isPlaying, draw, currentTime]);
 
-  // Handle case when no audio is loaded
+
+  const handleCanvasClick = (e) => {
+    if (!duration || !onSeek) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const seekTime = (clickX / rect.width) * duration;
+    onSeek(seekTime);
+  };
+
   if (!audioBuffer) {
     return (
-      <div 
-        className={`relative w-full bg-gray-900 rounded-md overflow-hidden flex items-center justify-center ${className}`}
-        style={{ height: `${height}px` }}
-      >
-        <p className="text-gray-500 text-sm">No audio loaded</p>
+      <div className={`relative w-full bg-bg-crust rounded-md flex items-center justify-center ${className}`} style={{ height: `${height}px` }}>
+        <p className="text-text-secondary text-sm">Load an audio file to see the timeline</p>
       </div>
     );
   }
 
   return (
-    <div 
-      className={`relative w-full bg-gray-900 rounded-md overflow-hidden ${className}`}
-      style={{ height: `${height}px` }}
-    >
-      <canvas
-        ref={canvasRef}
-        className="absolute top-0 left-0 w-full h-full"
-      />
+    <div className={`relative w-full bg-bg-crust rounded-md overflow-hidden cursor-pointer ${className}`} style={{ height: `${height}px` }} onClick={handleCanvasClick}>
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
     </div>
   );
 };
