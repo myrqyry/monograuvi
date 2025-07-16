@@ -1,7 +1,29 @@
-import { ClassicPreset as Classic } from 'rete';
 import { Presets } from 'rete-react-plugin';
 
-const socket = new Classic.Socket('socket');
+// Minimal socket identifier
+const socket = 'default-socket';
+
+// Minimal input/output/control classes
+class MinimalInput {
+  constructor(socket, label, multiConnection = false) {
+    this.socket = socket;
+    this.label = label;
+    this.multiConnection = multiConnection;
+  }
+}
+class MinimalOutput {
+  constructor(socket, label, multiConnection = false) {
+    this.socket = socket;
+    this.label = label;
+    this.multiConnection = multiConnection;
+  }
+}
+class MinimalControl {
+  constructor(initial, options = {}) {
+    this.initial = initial;
+    this.options = options;
+  }
+}
 
 export class MyBaseReteNode extends Presets.classic.Node {
   areaPlugin = null;
@@ -35,22 +57,19 @@ export class MyBaseReteNode extends Presets.classic.Node {
   }
 
   addInputWithLabel(key, label, isMultiConnection = false) {
-    const input = new Classic.Input(socket, label, isMultiConnection);
+    const input = new MinimalInput(socket, label, isMultiConnection);
     this.addInput(key, input);
     return input;
   }
 
   addOutputWithLabel(key, label, isMultiConnection = false) {
-    const output = new Classic.Output(socket, label, isMultiConnection);
+    const output = new MinimalOutput(socket, label, isMultiConnection);
     this.addOutput(key, output);
     return output;
   }
 
   addControlWithLabel(key, controlType, label, options = {}) {
-    const controlInstance = new Classic.Control(
-      options.initial,
-      {}
-    );
+    const controlInstance = new MinimalControl(options.initial, options);
     this.addControl(key, controlInstance);
 
     this.controlStore[key] = {

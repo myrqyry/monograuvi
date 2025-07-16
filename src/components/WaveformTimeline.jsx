@@ -60,7 +60,7 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
         ctx.scale(dpr, dpr);
         draw();
     });
-    resizeObserver.observe(canvas);
+    if (canvas) resizeObserver.observe(canvas);
     return () => resizeObserver.disconnect();
   }, [draw]);
 

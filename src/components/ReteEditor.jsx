@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { NodeEditor } from 'rete';
 import { ReactPlugin, Presets } from 'rete-react-plugin';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
-import { ConnectionPlugin } from 'rete-connection-plugin';
+import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
 import { HistoryPlugin, HistoryExtensions } from 'rete-history-plugin';
 import { ContextMenuPlugin, Presets as ContextMenuPresets } from 'rete-context-menu-plugin';
 import { DataflowEngine } from 'rete-engine';
@@ -71,7 +71,11 @@ export function ReteEditorComponent() {
 
   const handleProcessGraph = async () => {
     if (editorRef.current && dataflowEngineRef.current) {
-      const graphData = editorRef.current.toJSON();
+      if (!editorRef.current?.toJSON) {
+      console.error("ReteEditor: editorRef.current is not a valid NodeEditor instance or toJSON is unavailable.");
+      return;
+    }
+    const graphData = editorRef.current.toJSON();
       try {
         dataflowEngineRef.current.reset();
         await dataflowEngineRef.current.execute(graphData);
@@ -95,10 +99,8 @@ export function ReteEditorComponent() {
     const render = new ReactPlugin();
     
     // Initialize history plugin with proper configuration
-    const history = new HistoryPlugin({
-      keyboard: true,
-      // Add any other history plugin options here
-    });
+    const history = new HistoryPlugin();
+HistoryExtensions.keyboard(history);
     
     // Set a reference to the history plugin for undo/redo operations
     historyRef.current = history;
@@ -220,9 +222,9 @@ export function ReteEditorComponent() {
     area.use(connection);
     area.use(render);
     area.use(history);
-    connection.addPreset(
-      ConnectionPlugin.Presets.classic.setup()
-    );
+    
+    // Add the preset for the connection plugin (Rete.js v2 best practice)
+    connection.addPreset(ConnectionPresets.classic.setup());
 
     const subs = [
       editor.addPipe(context => {
@@ -294,7 +296,11 @@ export function ReteEditorComponent() {
         setReteGraphState({ nodes: nodesForStore, connections: connectionsForStore });
     };
 
-    history.on('change', syncGraphToStore);
+    if (history?.on) {
+      history.on('change', syncGraphToStore);
+    } else {
+      console.warn("HistoryPlugin is not properly initialized. Skipping history change listener.");
+    }
 
     const processLoop = async () => {
       if (!keepProcessingRef.current || !editorRef.current || !dataflowEngineRef.current) return;

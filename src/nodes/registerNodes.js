@@ -1,6 +1,6 @@
 // src/nodes/registerNodes.js
 // Import Rete components
-import { ClassicPreset } from 'rete';
+// import { ClassicPreset } from 'rete';
 
 // Import Rete node implementations
 import { AudioSourceReteNode } from './rete/AudioSourceReteNode';

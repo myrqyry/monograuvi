@@ -1,7 +1,8 @@
 import { MyBaseReteNode } from './MyBaseReteNode';
-import { ClassicPreset as Classic } from 'rete';
+// import { ClassicPreset as Classic } from 'rete';
 
-const socket = new Classic.Socket('socket');
+// Use a plain object or a simple string as a socket identifier for now
+const socket = 'texture-socket';
 
 export class BaseVisualReteNode extends MyBaseReteNode {
   constructor(label, options = {}) {
@@ -10,15 +11,13 @@ export class BaseVisualReteNode extends MyBaseReteNode {
   }
 
   addInputTexture(key = 'texture', label = 'Texture In') {
-    const input = new Classic.Input(socket, label, false);
-    this.addInput(key, input);
-    return input;
+    // Use addInputWithLabel for consistency, or define a custom socket if needed
+    return this.addInputWithLabel(key, label, false);
   }
 
   addOutputTexture(key = 'texture', label = 'Texture Out') {
-    const output = new Classic.Output(socket, label, false);
-    this.addOutput(key, output);
-    return output;
+    // Use addOutputWithLabel for consistency, or define a custom socket if needed
+    return this.addOutputWithLabel(key, label, false);
   }
 
   // Placeholder for a method to render the visual effect

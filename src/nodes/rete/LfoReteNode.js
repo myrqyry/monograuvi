@@ -1,5 +1,5 @@
 import { MyBaseReteNode } from './MyBaseReteNode'; // Corrected import path
-import { ClassicPreset as Classic } from 'rete';
+// import { ClassicPreset as Classic } from 'rete';
 
 // Classic.Socket is already available via Classic from 'rete' in MyBaseReteNode
 // const socket = new Classic.Socket('socket'); // Not needed here if MyBaseReteNode defines/uses it

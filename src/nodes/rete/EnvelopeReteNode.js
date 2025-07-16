@@ -1,5 +1,4 @@
 import { MyBaseReteNode } from './MyBaseReteNode';
-import { ClassicPreset as Classic } from 'rete'; // For Sockets if needed, though MyBaseReteNode handles default
 
 // Assuming MyBaseReteNode's addInputWithLabel and addOutputWithLabel use a default socket.
 // If specific socket types are needed, they can be defined here or passed.
