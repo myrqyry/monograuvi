@@ -37,6 +37,26 @@ import { FileExportReteNode } from '../nodes/rete/FileExportReteNode';
 import { PreviewReteNode } from '../nodes/rete/PreviewReteNode';
 import { SocialExportReteNode } from '../nodes/rete/SocialExportReteNode';
 import { RealTimeReteNode } from '../nodes/rete/RealTimeReteNode';
+import { UnrealBloomReteNode } from "../nodes/rete/UnrealBloomReteNode"; // Corrected import - this was uncommented in prev version
+
+// Three.js Node Imports
+import { BoxGeometryNode } from '../threejs/geometry/BoxGeometryNode';
+import { SphereGeometryNode } from '../threejs/geometry/SphereGeometryNode';
+import { MeshStandardMaterialNode } from '../threejs/materials/MeshStandardMaterialNode';
+import { MeshBasicMaterialNode } from '../threejs/materials/MeshBasicMaterialNode';
+import { ShaderMaterialNode } from '../threejs/materials/ShaderMaterialNode';
+import { AmbientLightNode } from '../threejs/lighting/AmbientLightNode';
+import { DirectionalLightNode } from '../threejs/lighting/DirectionalLightNode';
+import { PointLightNode } from '../threejs/lighting/PointLightNode';
+import { SceneNode } from '../threejs/core/SceneNode';
+import { PerspectiveCameraNode } from '../threejs/core/CameraNode'; // Renamed from CameraNode for clarity
+import { MeshNode } from '../threejs/core/MeshNode';
+import { AnimationNode } from '../threejs/core/AnimationNode';
+import { UnrealBloomPassNode } from '../threejs/postprocessing/UnrealBloomPassNode';
+import { EffectComposerNode } from '../threejs/postprocessing/EffectComposerNode';
+import { SceneRendererNode } from '../threejs/core/SceneRendererNode';
+import { RendererNode } from '../threejs/core/RendererNode';
+
 import useStore from '../store';
 import NumberControlComponent from './rete_controls/NumberControlComponent';
 import SelectControlComponent from './rete_controls/SelectControlComponent';
@@ -151,6 +171,29 @@ export function ReteEditor() {
         ['Visual/Kaleidoscope', () => setupNewNode(new KaleidoscopeReteNode())],
         ['Visual/Mandala', () => setupNewNode(new MandalaReteNode())],
         ['Visual/Flow Field', () => setupNewNode(new FlowFieldReteNode())],
+        ['Visual/Unreal Bloom', () => setupNewNode(new UnrealBloomPassNode())], // Added Unreal Bloom
+
+        // Three.js Nodes
+        ['Three.js/Core/Renderer', () => setupNewNode(new RendererNode())],
+        ['Three.js/Core/Scene', () => setupNewNode(new SceneNode())],
+        ['Three.js/Core/Camera', () => setupNewNode(new PerspectiveCameraNode())],
+        ['Three.js/Core/Mesh', () => setupNewNode(new MeshNode())],
+        ['Three.js/Core/Animation', () => setupNewNode(new AnimationNode())],
+        ['Three.js/Core/Scene Renderer', () => setupNewNode(new SceneRendererNode())],
+
+        ['Three.js/Geometry/Box', () => setupNewNode(new BoxGeometryNode())],
+        ['Three.js/Geometry/Sphere', () => setupNewNode(new SphereGeometryNode())],
+
+        ['Three.js/Material/Standard', () => setupNewNode(new MeshStandardMaterialNode())],
+        ['Three.js/Material/Basic', () => setupNewNode(new MeshBasicMaterialNode())],
+        ['Three.js/Material/Shader', () => setupNewNode(new ShaderMaterialNode())],
+
+        ['Three.js/Lighting/Ambient', () => setupNewNode(new AmbientLightNode())],
+        ['Three.js/Lighting/Directional', () => setupNewNode(new DirectionalLightNode())],
+        ['Three.js/Lighting/Point', () => setupNewNode(new PointLightNode())],
+
+        ['Three.js/PostProcessing/Unreal Bloom', () => setupNewNode(new UnrealBloomPassNode())],
+        ['Three.js/PostProcessing/Effect Composer', () => setupNewNode(new EffectComposerNode())],
       ]),
     });
 

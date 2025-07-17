@@ -1,44 +1,76 @@
+// Filename: src/audio/BeatDetector.js
 import FeatureExtractor from './FeatureExtractor.js';
 
 class BeatDetector extends FeatureExtractor {
     constructor(audioContext, onBeatCallback = null) {
         super(audioContext);
         this.audioContext = audioContext;
-        this.threshold = DEFAULT_SENSITIVITY_THRESHOLD; // Sensitivity threshold for beat detection
-        this.lastBeatTime = 0;
         this.onBeatCallback = onBeatCallback;
+        this.workletNode = null;
+
+        // Bind methods
+        this.handleWorkletMessage = this.handleWorkletMessage.bind(this);
     }
 
-    static DEFAULT_SENSITIVITY_THRESHOLD = 0.1;
-
-    processAudioData(audioData) {
-        const currentTime = this.audioContext.currentTime;
-        const amplitude = this.calculateAmplitude(audioData);
-
-        if (amplitude > this.threshold && (currentTime - this.lastBeatTime) > BeatDetector.MIN_TIME_BETWEEN_BEATS) {
-            this.lastBeatTime = currentTime;
-            this.onBeatDetected();
+    static async create(audioContext, onBeatCallback = null) {
+        const detector = new BeatDetector(audioContext, onBeatCallback);
+        try {
+            // Path must be relative to the root of the web server
+            await audioContext.audioWorklet.addModule('/beat-detector.worklet.js');
+            detector.workletNode = new AudioWorkletNode(audioContext, 'beat-detector-processor');
+            detector.workletNode.port.onmessage = detector.handleWorkletMessage;
+            console.log('BeatDetector AudioWorklet created and registered successfully.');
+            return detector;
+        } catch (error) {
+            console.error('Error creating BeatDetector worklet:', error);
+            throw error; // re-throw to allow caller to handle it
         }
     }
 
-    static MIN_TIME_BETWEEN_BEATS = 0.5;
-
-    calculateAmplitude(audioData) {
-        let sum = 0;
-        for (let i = 0; i < audioData.length; i++) {
-            sum += Math.abs(audioData[i]);
-        }
-        return sum / audioData.length;
-    }
-
-    onBeatDetected() {
-        // Trigger any visual or audio response to the beat detection
-        if (this.onBeatCallback) {
-            this.onBeatCallback();
+    connect(sourceNode) {
+        if (this.workletNode) {
+            sourceNode.connect(this.workletNode);
         } else {
-            console.log('Beat detected!');
+            console.error('BeatDetector worklet node not initialized. Cannot connect.');
         }
     }
+
+    disconnect(sourceNode) {
+        if (this.workletNode) {
+            sourceNode.disconnect(this.workletNode);
+        }
+    }
+
+    handleWorkletMessage(event) {
+        if (event.data.beat) {
+            this.onBeatDetected(event.data.timestamp);
+        }
+    }
+
+    onBeatDetected(timestamp) {
+        if (this.onBeatCallback) {
+            this.onBeatCallback(timestamp);
+        } else {
+            console.log(`Beat detected at: ${timestamp}`);
+        }
+    }
+
+    setThreshold(threshold) {
+        if (this.workletNode) {
+            const thresholdParam = this.workletNode.parameters.get('threshold');
+            if (thresholdParam) {
+                // Use setValueAtTime for sample-accurate changes
+                thresholdParam.setValueAtTime(threshold, this.audioContext.currentTime);
+            } else {
+                 // Fallback for direct message passing if parameter is not found
+                this.workletNode.port.postMessage({ threshold });
+            }
+        }
+    }
+
+    // This class no longer processes audio directly.
+    // The processAudioData, calculateAmplitude methods are now in the worklet.
+    // The FeatureExtractor base class might need to be re-evaluated if it's no longer a fit.
 }
 
 export default BeatDetector;

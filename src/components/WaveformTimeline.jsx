@@ -1,8 +1,10 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../store';
 
 const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
   const canvasRef = useRef(null);
+  const waveformCacheCanvas = useMemo(() => document.createElement('canvas'), []);
+
   const { audioBuffer, currentTime, duration, isPlaying } = useStore(state => ({
     audioBuffer: state.audioBuffer,
     currentTime: state.currentTime,
@@ -10,18 +12,18 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
     isPlaying: state.isPlaying,
   }));
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !audioBuffer) return;
-    const ctx = canvas.getContext('2d');
-    const { width, height } = canvas;
+  // 1. Draw the static waveform to an offscreen canvas (cache)
+  const drawWaveformToCache = useCallback((width, height) => {
+    if (!audioBuffer) return;
+
+    waveformCacheCanvas.width = width;
+    waveformCacheCanvas.height = height;
+    const ctx = waveformCacheCanvas.getContext('2d');
     const data = audioBuffer.getChannelData(0);
     const step = Math.ceil(data.length / width);
     const amp = height / 2;
 
     ctx.clearRect(0, 0, width, height);
-
-    // Draw waveform
     ctx.strokeStyle = 'rgba(200, 200, 220, 0.5)';
     ctx.beginPath();
     for (let i = 0; i < width; i++) {
@@ -36,8 +38,10 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
       ctx.lineTo(i, (1 + max) * amp);
     }
     ctx.stroke();
+  }, [audioBuffer, waveformCacheCanvas]);
 
-    // Draw playhead
+  // 2. Draw the playhead on the main canvas
+  const drawPlayhead = useCallback((ctx, width, height) => {
     if (duration > 0) {
       const x = (currentTime / duration) * width;
       ctx.strokeStyle = '#f5c2e7'; // Catppuccin Pink
@@ -47,10 +51,44 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
       ctx.lineTo(x, height);
       ctx.stroke();
     }
-  }, [audioBuffer, currentTime, duration]);
+  }, [currentTime, duration]);
 
+  // 3. Main drawing function to combine cache and playhead
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const { width, height } = canvas;
+
+    // Clear and draw the cached waveform
+    ctx.clearRect(0, 0, width, height);
+    if (waveformCacheCanvas.width > 0) {
+      ctx.drawImage(waveformCacheCanvas, 0, 0);
+    }
+
+    // Draw the playhead on top
+    drawPlayhead(ctx, width, height);
+  }, [waveformCacheCanvas, drawPlayhead]);
+
+  // Effect for resizing and initial waveform draw
   useEffect(() => {
     const canvas = canvasRef.current;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const newWidth = rect.width * dpr;
+    const newHeight = rect.height * dpr;
+
+    // Update cache and main canvas only if dimensions change
+    if (waveformCacheCanvas.width !== newWidth || waveformCacheCanvas.height !== newHeight) {
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        
+        drawWaveformToCache(newWidth, newHeight);
+    }
+    draw(); // Initial draw
+
     const resizeObserver = new ResizeObserver(() => {
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
@@ -58,13 +96,15 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
         canvas.height = rect.height * dpr;
         const ctx = canvas.getContext('2d');
         ctx.scale(dpr, dpr);
+        drawWaveformToCache(canvas.width, canvas.height);
         draw();
     });
     if (canvas) resizeObserver.observe(canvas);
     return () => resizeObserver.disconnect();
-  }, [draw]);
+  }, [draw, drawWaveformToCache, audioBuffer, waveformCacheCanvas]);
 
 
+  // Effect for animation loop
   useEffect(() => {
       if (isPlaying) {
           let animationFrameId;
@@ -75,7 +115,7 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
           renderLoop();
           return () => cancelAnimationFrame(animationFrameId);
       } else {
-          draw(); // Draw once when paused
+          draw(); // Draw once when paused or currentTime changes
       }
   }, [isPlaying, draw, currentTime]);
 
@@ -103,4 +143,4 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
   );
 };
 
-export default WaveformTimeline;
+export default React.memo(WaveformTimeline);

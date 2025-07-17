@@ -2,7 +2,7 @@
 Video generation API routes.
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
@@ -139,33 +139,52 @@ class ReactiveVideoRequest(BaseModel):
     audio_features: Dict[str, Any]
     video_config: VideoConfig
 
+def generate_video_task(video_generator: VideoGenerator, audio_features: Dict[str, Any], video_config: Dict[str, Any]):
+    """Wrapper function to run video generation in the background."""
+    logger.info("Starting background video generation task.")
+    try:
+        # Note: The original function was async, but background tasks run in a thread pool executor,
+        # so we can call blocking I/O or CPU-bound functions directly.
+        # If the underlying video_generator methods remain async, we'd need an event loop runner.
+        # For this example, we assume the core generation is blocking.
+        video_generator.create_audio_reactive_video_sync(audio_features, video_config)
+        logger.info("Background video generation task finished.")
+    except Exception as e:
+        logger.error(f"Error in background video generation task: {e}")
+
+
 @router.post("/create-reactive")
 async def create_reactive_video(
     request: ReactiveVideoRequest,
+    background_tasks: BackgroundTasks,
     video_generator: VideoGenerator = Depends(get_video_generator)
 ):
-    """Create an audio-reactive video from extracted audio features."""
+    """
+    Create an audio-reactive video from extracted audio features.
+    This endpoint now initiates a background task for video generation.
+    """
     try:
-        # Generate video
-        video_path = await video_generator.create_audio_reactive_video(
-            request.audio_features, request.video_config.dict()
+        # Add the time-consuming task to the background
+        background_tasks.add_task(
+            generate_video_task,
+            video_generator,
+            request.audio_features,
+            request.video_config.dict()
         )
         
-        return JSONResponse({
-            "status": "success",
-            "video_path": video_path,
-            "config": request.video_config.dict()
-        })
+        # Return an immediate response
+        return JSONResponse(
+            status_code=202,  # Accepted
+            content={
+                "status": "processing",
+                "message": "Video generation started in the background.",
+                "config": request.video_config.dict()
+            }
+        )
         
-    except (ValueError, TypeError, RuntimeError) as e:
-        logger.error(f"Error creating reactive video: {e}")
-        raise HTTPException(status_code=500, detail="Error creating reactive video")
-    except (OSError, FileNotFoundError) as e:
-        logger.error(f"File handling error creating reactive video: {e}")
-        raise HTTPException(status_code=500, detail="File handling error creating reactive video")
     except Exception as e:
-        logger.error(f"Unhandled error creating reactive video: {e}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        logger.error(f"Error initiating reactive video task: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start video generation task.")
 
 @router.post("/create-spectrogram")
 async def create_spectrogram_video(

@@ -33,7 +33,15 @@ class VideoGenerator:
     async def create_audio_reactive_video(self, 
                                         audio_features: Dict[str, Any],
                                         video_config: Dict[str, Any]) -> str:
-        """Create an audio-reactive video based on extracted features."""
+        """Asynchronously create an audio-reactive video. This is a wrapper for the sync version."""
+        # In a real-world scenario with a proper async library for CPU-bound tasks,
+        # this would be handled differently. For now, we call the sync version.
+        return self.create_audio_reactive_video_sync(audio_features, video_config)
+
+    def create_audio_reactive_video_sync(self, 
+                                        audio_features: Dict[str, Any],
+                                        video_config: Dict[str, Any]) -> str:
+        """Synchronously create an audio-reactive video based on extracted features."""
         try:
             duration = audio_features.get('duration', 30)
             fps = video_config.get('fps', 30)

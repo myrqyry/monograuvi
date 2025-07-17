@@ -3,22 +3,18 @@ import { initWebGL, renderVisuals, cleanupWebGLResources } from '../utils/WebGLU
 
 const Canvas = ({ audioData, visualElements }) => {
     const canvasRef = useRef(null);
-    const glRef = useRef(null);
+    const webglRef = useRef(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        const gl = initWebGL(canvas);
-        if (!gl) {
-            console.error("Failed to initialize WebGL. Your browser may not support it.");
-            return;
-        }
-        glRef.current = gl;
+        const { renderer, scene, camera } = initWebGL(canvas);
+        webglRef.current = { renderer, scene, camera };
 
         let animationFrameId;
 
         const render = () => {
-            if (gl) {
-                renderVisuals(gl, audioData, visualElements);
+            if (webglRef.current) {
+                renderVisuals(webglRef.current.renderer, webglRef.current.scene, webglRef.current.camera, visualElements);
                 animationFrameId = requestAnimationFrame(render);
             }
         };
@@ -28,27 +24,21 @@ const Canvas = ({ audioData, visualElements }) => {
         return () => {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null;
-            if (gl) {
-                cleanupWebGLResources(gl);
+            if (webglRef.current) {
+                cleanupWebGLResources(webglRef.current.renderer);
             }
         };
     }, []);
 
     useEffect(() => {
-        const gl = glRef.current;
-        if (gl) {
-            renderVisuals(gl, audioData, visualElements);
+        if (webglRef.current) {
+            renderVisuals(webglRef.current.renderer, webglRef.current.scene, webglRef.current.camera, visualElements);
         }
     }, [audioData, visualElements]);
 
     return (
         <div>
-            <canvas ref={canvasRef} width={800} height={600} style={{ display: glRef.current ? 'block' : 'none' }} />
-            {!glRef.current && (
-                <p style={{ color: 'red', textAlign: 'center' }}>
-                    WebGL is not supported or failed to initialize. Please use a compatible browser.
-                </p>
-            )}
+            <canvas ref={canvasRef} width={800} height={600} />
         </div>
     );
 };

@@ -1,4 +1,4 @@
-import { Presets } from 'rete-react-plugin';
+import { ClassicPreset } from 'rete'; 
 
 // Minimal socket identifier
 const socket = 'default-socket';
@@ -25,7 +25,7 @@ class MinimalControl {
   }
 }
 
-export class MyBaseReteNode extends Presets.classic.Node {
+export class MyBaseReteNode extends ClassicPreset.Node {
   areaPlugin = null;
   // Callback to inform ReteEditorComponent about property changes for Zustand sync
   onPropertyChangeForSync = null;
