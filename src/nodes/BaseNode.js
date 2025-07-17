@@ -126,7 +126,8 @@ return true;
             this.errorState = null;
             const result = await this.onProcess(inputs);
             
-            this.processingTime = performance.now() - startTime;
+            const endTime = performance.now();
+            this.processingTime = Math.min(this.processingTime + (endTime - startTime), 1000); // Cap processing time
             this.processCount++;
             this.lastProcessTime = Date.now();
             

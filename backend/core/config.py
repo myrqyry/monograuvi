@@ -56,4 +56,8 @@ class Settings:
     WS_HEARTBEAT_INTERVAL: int = 30
     WS_MAX_CONNECTIONS: int = 100
 
+    # Admin credentials for basic authentication
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin_user")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin_pass")
+
 settings = Settings()

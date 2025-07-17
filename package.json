@@ -6,7 +6,7 @@
   "scripts": {
     "logo": "node scripts/show-logo.js",
     "dev": "concurrently -k -n \"🎨,🐍,✨\" -c \"cyan,green,magenta\" \"npm run frontend\" \"npm run backend\" \"node scripts/wait-and-show-logo.js\"",
-    "frontend": "NODE_OPTIONS='--max-old-space-size=4096' vite",
+    "frontend": "NODE_OPTIONS='--max-old-space-size=2048' vite",
     "backend": "cd backend && venv/bin/python main.py",
     "setup": "chmod +x scripts/setup.sh && ./scripts/setup.sh",
     "install:all": "npm install && npm run setup",

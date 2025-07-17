@@ -16,8 +16,7 @@ import base64
 from scipy import signal
 from sklearn.preprocessing import StandardScaler
 from .config import settings
-import asyncio
-import functools # Added import
+from utils.async_utils import run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +36,10 @@ class AudioProcessor:
     async def load_audio(self, file_path: str) -> Tuple[np.ndarray, int]:
         """Load audio file and return audio data and sample rate."""
         try:
-            loop = asyncio.get_event_loop()
-            # Create a partial function with the 'sr' keyword argument pre-filled
-            load_with_sr = functools.partial(librosa.load, sr=self.sample_rate)
-            # Pass file_path as the positional argument to this new partial function
-            audio_data, sr = await loop.run_in_executor(None, load_with_sr, file_path)
+            audio_data, sr = await run_in_thread(
+                librosa.load, file_path, sr=self.sample_rate
+            )
             logger.info(f"Loaded audio: {len(audio_data)} samples at {sr} Hz (target sr: {self.sample_rate})")
-            # Note: librosa.load returns the actual sample rate of the loaded audio if sr=None,
-            # or the target sample rate if resampling occurred. Here, sr should match self.sample_rate.
             return audio_data, sr
         except Exception as e:
             logger.error(f"Error loading audio: {e}")
@@ -52,47 +47,27 @@ class AudioProcessor:
     
     async def extract_advanced_features(self, audio_data: np.ndarray) -> Dict[str, Any]:
         """Extract comprehensive audio features using librosa."""
-        features = {}
-        
+        return await run_in_thread(self._extract_advanced_features_sync, audio_data)
+
+    def _extract_advanced_features_sync(self, audio_data: np.ndarray) -> Dict[str, Any]:
+        """Synchronous helper for extracting audio features."""
         try:
-            loop = asyncio.get_event_loop()
-
             # Spectral features
-            # librosa.feature.spectral_centroid(y=None, sr=22050, S=None, n_fft=2048, hop_length=512, freq=None, win_length=None, window='hann', center=True, pad_mode='constant', Real=False, aggregate=None, amin=1e-10, rolloff_min_energy=0.0001)
-            # Note: y is the first positional argument. audio_data is y.
-            _spectral_centroid_partial = functools.partial(librosa.feature.spectral_centroid, sr=self.sample_rate, hop_length=self.hop_length)
-            spectral_centroids = (await loop.run_in_executor(None, _spectral_centroid_partial, audio_data))[0]
-
-            _spectral_rolloff_partial = functools.partial(librosa.feature.spectral_rolloff, sr=self.sample_rate, hop_length=self.hop_length)
-            spectral_rolloff = (await loop.run_in_executor(None, _spectral_rolloff_partial, audio_data))[0]
-
-            _spectral_bandwidth_partial = functools.partial(librosa.feature.spectral_bandwidth, sr=self.sample_rate, hop_length=self.hop_length)
-            spectral_bandwidth = (await loop.run_in_executor(None, _spectral_bandwidth_partial, audio_data))[0]
-
-            # librosa.feature.zero_crossing_rate(y, *, frame_length=2048, hop_length=512, center=True, pad=True, threshold=1e-10, **kwargs)
-            _zero_crossing_rate_partial = functools.partial(librosa.feature.zero_crossing_rate, hop_length=self.hop_length)
-            zero_crossing_rate = (await loop.run_in_executor(None, _zero_crossing_rate_partial, audio_data))[0]
+            spectral_centroids = librosa.feature.spectral_centroid(y=audio_data, sr=self.sample_rate, hop_length=self.hop_length)[0]
+            spectral_rolloff = librosa.feature.spectral_rolloff(y=audio_data, sr=self.sample_rate, hop_length=self.hop_length)[0]
+            spectral_bandwidth = librosa.feature.spectral_bandwidth(y=audio_data, sr=self.sample_rate, hop_length=self.hop_length)[0]
+            zero_crossing_rate = librosa.feature.zero_crossing_rate(y=audio_data, hop_length=self.hop_length)[0]
             
-            # MFCC features: librosa.feature.mfcc(y=None, sr=22050, S=None, n_mfcc=20, dct_type=2, norm='ortho', lifter=0, **kwargs)
-            # audio_data is y, self.sample_rate is sr, 13 is n_mfcc, self.hop_length is hop_length
-            _mfcc_partial = functools.partial(librosa.feature.mfcc, sr=self.sample_rate, n_mfcc=13, hop_length=self.hop_length)
-            mfccs = await loop.run_in_executor(None, _mfcc_partial, audio_data)
+            # MFCC and Chroma features
+            mfccs = librosa.feature.mfcc(y=audio_data, sr=self.sample_rate, n_mfcc=13, hop_length=self.hop_length)
+            chroma = librosa.feature.chroma_stft(y=audio_data, sr=self.sample_rate, hop_length=self.hop_length)
             
-            # Chroma features: librosa.feature.chroma_stft(y=None, sr=22050, S=None, norm=inf, n_fft=2048, hop_length=512, win_length=None, window='hann', center=True, pad_mode='constant', tuning=None, n_chroma=12, cqt_threshold=NOT_SET, **kwargs)
-            _chroma_stft_partial = functools.partial(librosa.feature.chroma_stft, sr=self.sample_rate, hop_length=self.hop_length)
-            chroma = await loop.run_in_executor(None, _chroma_stft_partial, audio_data)
+            # Tempo, beats, and onsets
+            tempo, beats = librosa.beat.beat_track(y=audio_data, sr=self.sample_rate, hop_length=self.hop_length)
+            onsets = librosa.onset.onset_detect(y=audio_data, sr=self.sample_rate, hop_length=self.hop_length)
             
-            # Tempo and beat tracking: librosa.beat.beat_track(y=None, sr=22050, onset_envelope=None, hop_length=512, start_bpm=120.0, tightness=100, trim=True, bpm=None, units='frames', aggregate=<function mean at 0x7fe7c177b720>)
-            _beat_track_partial = functools.partial(librosa.beat.beat_track, sr=self.sample_rate, hop_length=self.hop_length)
-            tempo, beats = await loop.run_in_executor(None, _beat_track_partial, audio_data)
-            
-            # Onset detection: librosa.onset.onset_detect(y=None, sr=22050, onset_envelope=None, hop_length=512, units='frames', backtrack=False, energy=None, **kwargs)
-            _onset_detect_partial = functools.partial(librosa.onset.onset_detect, sr=self.sample_rate, hop_length=self.hop_length)
-            onsets = await loop.run_in_executor(None, _onset_detect_partial, audio_data)
-            
-            # Harmonic and percussive separation: librosa.effects.hpss(y, *, kernel_size=31, power=2.0, margin=1.0, **kwargs)
-            # audio_data is y. No other args match self.sample_rate or self.hop_length directly in signature.
-            harmonic, percussive = await loop.run_in_executor(None, librosa.effects.hpss, audio_data)
+            # Harmonic and percussive separation
+            harmonic, percussive = librosa.effects.hpss(audio_data)
             
             features = {
                 'spectral_centroid': spectral_centroids.tolist(),
@@ -116,17 +91,11 @@ class AudioProcessor:
         except Exception as e:
             logger.error(f"Error extracting audio features: {e}")
             raise
-    
-    async def generate_spectrogram(self, audio_data: np.ndarray, 
-                                 spec_type: str = 'mel') -> str:
+
+    async def generate_spectrogram(self, audio_data: np.ndarray,
+                                 spec_type: str = 'mel', fmax: Optional[int] = None) -> str:
         """Generate spectrogram visualization as base64 encoded image."""
-        try:
-            loop = asyncio.get_event_loop()
-            image_base64 = await loop.run_in_executor(None, self._generate_spectrogram_sync, audio_data, spec_type, None)
-            return image_base64
-        except Exception as e:
-            logger.error(f"Error generating spectrogram: {e}")
-            raise
+        return await run_in_thread(self._generate_spectrogram_sync, audio_data, spec_type, fmax)
 
     def _generate_spectrogram_sync(self, audio_data: np.ndarray, spec_type: str, fmax: Optional[int] = None) -> str:
         """Synchronous helper for generating spectrogram."""
@@ -185,12 +154,7 @@ class AudioProcessor:
     
     async def detect_key_and_scale(self, audio_data: np.ndarray) -> Dict[str, Any]:
         """Detect musical key and scale of the audio."""
-        try:
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._detect_key_and_scale_sync, audio_data)
-        except Exception as e:
-            logger.error(f"Error detecting key and scale: {e}")
-            raise
+        return await run_in_thread(self._detect_key_and_scale_sync, audio_data)
 
     def _detect_key_and_scale_sync(self, audio_data: np.ndarray) -> Dict[str, Any]:
         # Extract chroma features
@@ -245,12 +209,7 @@ class AudioProcessor:
     
     async def segment_audio(self, audio_data: np.ndarray, num_segments: Optional[int] = None) -> Dict[str, Any]:
         """Segment audio into structural parts (verse, chorus, etc.)."""
-        try:
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._segment_audio_sync, audio_data, num_segments)
-        except Exception as e:
-            logger.error(f"Error segmenting audio: {e}")
-            raise
+        return await run_in_thread(self._segment_audio_sync, audio_data, num_segments=num_segments)
 
     def _segment_audio_sync(self, audio_data: np.ndarray, num_segments: Optional[int] = None) -> Dict[str, Any]:
         # Use recurrence matrix for structural segmentation
@@ -295,12 +254,7 @@ class AudioProcessor:
     
     async def extract_rhythm_features(self, audio_data: np.ndarray) -> Dict[str, Any]:
         """Extract detailed rhythm and timing features."""
-        try:
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._extract_rhythm_features_sync, audio_data)
-        except Exception as e:
-            logger.error(f"Error extracting rhythm features: {e}")
-            raise
+        return await run_in_thread(self._extract_rhythm_features_sync, audio_data)
 
     def _extract_rhythm_features_sync(self, audio_data: np.ndarray) -> Dict[str, Any]:
         # Tempo and beat tracking

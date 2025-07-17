@@ -396,16 +396,18 @@ async def generate_video_from_mood(
 async def download_video(filename: str):
     """Download generated video file."""
     try:
-        # Construct file path (in production, add proper security checks)
-        # Validate filename to prevent path traversal
-        if ".." in filename or "/" in filename or "\\" in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
+        # Define a secure base directory for downloads
+        base_download_path = "backend/temp/video"
         
+        # Validate the requested filename against the base path
+        if not file_validator.validate_path_is_safe(base_download_path, filename):
+            raise HTTPException(status_code=400, detail="Invalid or malicious filename provided.")
+
         # Construct secure file path
-        file_path = Path("backend/temp/video") / Path(filename).name
+        file_path = Path(base_download_path) / Path(filename).name
         
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="Video file not found")
+        if not file_path.is_file(): # More specific check
+            raise HTTPException(status_code=404, detail="Video file not found or is not a file.")
         
         return FileResponse(
             path=str(file_path),

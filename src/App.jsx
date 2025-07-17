@@ -1,7 +1,7 @@
 // src/App.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import ReteEditorComponent from './components/ReteEditor'; // Import Rete Editor
+import ReteEditor from './components/ReteEditor'; // Import Rete Editor
 import NodeLibrary from './components/NodeLibrary';
 import MotionLibraryDisplay from './components/MotionLibraryDisplay';
 import MusicPlayer from './components/MusicPlayer';
@@ -67,7 +67,7 @@ function App() {
           </div>
         )}
         <div className={`graph-area ${libraryVisible ? '' : 'full-width'} ${!isVRMViewerVisible ? 'vrm-closed-expand' : ''}`}>
-          <ReteEditorComponent /> {/* Render Rete.js editor */}
+          <ReteEditor /> {/* Render Rete.js editor */}
         </div>
         {isVRMViewerVisible && (
           <div className="vrm-viewer-area">

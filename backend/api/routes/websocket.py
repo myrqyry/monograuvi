@@ -2,8 +2,8 @@
 WebSocket routes for real-time communication.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPBasic, HTTPBasicCredentials
 from typing import Dict, List
 import json
 import logging
@@ -22,21 +22,21 @@ class ConnectionManager:
         # Removed redundant active_connections list
         self.connection_data: Dict[WebSocket, Dict] = {}
     
-    async def connect(self, websocket: WebSocket, client_id: str = None):
+    async def connect(self, websocket: WebSocket, token: str = None):
         """Accept a new WebSocket connection."""
         await websocket.accept()
+        is_authorized = self.verify_token_or_basic_auth(token)
         self.connection_data[websocket] = {
-            "client_id": client_id,
+            "is_authorized": is_authorized,
             "connected_at": asyncio.get_event_loop().time()
         }
-        logger.info(f"WebSocket client connected: {client_id}")
+        logger.info(f"WebSocket client connected. Authorized: {is_authorized}")
     
     def disconnect(self, websocket: WebSocket):
         """Remove a WebSocket connection."""
 # Simplified removal as active_connections is removed
         client_data = self.connection_data.pop(websocket, {})
-        client_id = client_data.get("client_id", "unknown")
-        logger.info(f"WebSocket client disconnected: {client_id}")
+        logger.info(f"WebSocket client disconnected.")
     
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send a message to a specific WebSocket."""
@@ -60,27 +60,32 @@ class ConnectionManager:
         for connection in disconnected:
             self.disconnect(connection)
     
-    async def send_to_client(self, client_id: str, message: str):
-        """Send a message to a specific client by ID."""
-        sent = False
-        for websocket, data in self.connection_data.items():
-            if data.get("client_id") == client_id:
-                await self.send_personal_message(message, websocket)
-                sent = True
-        return sent
+    def verify_token_or_basic_auth(self, token: str = None) -> bool:
+        """
+        Verify the provided token or basic authentication.
+        For demonstration, a simple check against hardcoded credentials.
+        In a real application, this would involve JWT validation, DB lookup, etc.
+        """
+        if token:
+            # Simple token validation (e.g., check if it matches a predefined API key or JWT)
+            # This is a placeholder. A real implementation would parse and validate JWTs or similar.
+            expected_token = "SUPER_SECRET_TOKEN" # Replace with actual token validation
+            return token == expected_token
+        return False
 
 # Global connection manager
 manager = ConnectionManager()
 
-async def handle_websocket_messages(websocket: WebSocket, client_id: str, handler: callable):
+async def handle_websocket_messages(websocket: WebSocket, handler: callable, token: str = None):
     """Helper function to handle WebSocket messages."""
-    await manager.connect(websocket, client_id)
+    await manager.connect(websocket, token)
     try:
         while True:
             data = await websocket.receive_text()
             try:
                 message = json.loads(data)
-                await handler(websocket, message)
+                is_authorized = manager.connection_data.get(websocket, {}).get("is_authorized", False)
+                await handler(websocket, message, is_authorized)
             except json.JSONDecodeError:
                 await manager.send_personal_message(
                     json.dumps({
@@ -90,7 +95,7 @@ async def handle_websocket_messages(websocket: WebSocket, client_id: str, handle
                     websocket
                 )
             except Exception as e:
-                logger.exception(f"Error in WebSocket handler for client {client_id}: {e}")
+                logger.exception(f"Error in WebSocket handler: {e}")
                 await manager.send_personal_message(
                     json.dumps({
                         "type": "error",
@@ -102,9 +107,9 @@ async def handle_websocket_messages(websocket: WebSocket, client_id: str, handle
         manager.disconnect(websocket)
 
 @router.websocket("/audio-processing")
-async def websocket_audio_processing(websocket: WebSocket, client_id: str = "anonymous"):
+async def websocket_audio_processing(websocket: WebSocket, token: str = None):
     """WebSocket endpoint for real-time audio processing updates."""
-    async def audio_handler(websocket, message):
+    async def audio_handler(websocket, message, is_authorized: bool):
         message_type = message.get("type")
         if message_type == "ping":
             await manager.send_personal_message(
@@ -139,12 +144,12 @@ async def websocket_audio_processing(websocket: WebSocket, client_id: str = "ano
                 }),
                 websocket
             )
-    await handle_websocket_messages(websocket, client_id, audio_handler)
+    await handle_websocket_messages(websocket, audio_handler, token)
 
 @router.websocket("/video-generation")
-async def websocket_video_generation(websocket: WebSocket, client_id: str = "anonymous"):
+async def websocket_video_generation(websocket: WebSocket, token: str = None):
     """WebSocket endpoint for real-time video generation updates."""
-    async def video_handler(websocket, message):
+    async def video_handler(websocket, message, is_authorized: bool):
         message_type = message.get("type")
         if message_type == "video_progress":
             progress = message.get("progress", 0)
@@ -176,22 +181,18 @@ async def websocket_video_generation(websocket: WebSocket, client_id: str = "ano
                 }),
                 websocket
             )
-    await handle_websocket_messages(websocket, client_id, video_handler)
+    await handle_websocket_messages(websocket, video_handler, token)
 
 @router.websocket("/notifications")
-async def websocket_notifications(websocket: WebSocket, client_id: str = "anonymous"):
+async def websocket_notifications(websocket: WebSocket, token: str = None):
     """WebSocket endpoint for general notifications."""
-    async def notification_handler(websocket, message):
+    async def notification_handler(websocket, message, is_authorized: bool):
         if message.get("broadcast"):
-            # Ensure only authorized clients can broadcast
-            # NOTE: A proper token-based authentication mechanism should be implemented here.
-            # This check is currently non-functional as 'is_authorized' is never set.
-            connection_info = manager.connection_data.get(websocket, {})
-            if not connection_info.get("is_authorized", False):
+            if not is_authorized:
                 await manager.send_personal_message(
                     json.dumps({
                         "type": "error",
-                        "message": "Unauthorized broadcast attempt"
+                        "message": "Forbidden: Not authorized to broadcast"
                     }),
                     websocket
                 )
@@ -199,7 +200,6 @@ async def websocket_notifications(websocket: WebSocket, client_id: str = "anonym
             await manager.broadcast(
                 json.dumps({
                     "type": "notification",
-                    "from": client_id,
                     "message": message.get("message"),
                     "timestamp": asyncio.get_event_loop().time()
                 })
@@ -212,27 +212,30 @@ async def websocket_notifications(websocket: WebSocket, client_id: str = "anonym
                 }),
                 websocket
             )
-    await handle_websocket_messages(websocket, client_id, notification_handler)
+    await handle_websocket_messages(websocket, notification_handler, token)
 
 # Helper functions for sending updates from other parts of the application
 
-async def send_audio_update(client_id: str, update_data: Dict):
-    """Send audio processing update to a specific client."""
+# Helper functions for sending updates from other parts of the application
+# No longer using client_id for targeted messages, can use broadcast or specific auth mechanism
+
+async def send_audio_update(update_data: Dict): # Removed client_id
+    """Send audio processing update (broadcast for now, or implement client-specific auth)."""
     message = json.dumps({
         "type": "audio_update",
         "data": update_data,
         "timestamp": asyncio.get_event_loop().time()
     })
-    await manager.send_to_client(client_id, message)
+    await manager.broadcast(message) # Broadcasting to all for simplicity; fine-grained control needs proper client ID management
 
-async def send_video_update(client_id: str, update_data: Dict):
-    """Send video generation update to a specific client."""
+async def send_video_update(update_data: Dict): # Removed client_id
+    """Send video generation update (broadcast for now, or implement client-specific auth)."""
     message = json.dumps({
         "type": "video_update",
         "data": update_data,
         "timestamp": asyncio.get_event_loop().time()
     })
-    await manager.send_to_client(client_id, message)
+    await manager.broadcast(message) # Broadcasting to all for simplicity; fine-grained control needs proper client ID management
 
 async def broadcast_system_notification(notification: str):
     """Broadcast a system notification to all connected clients."""

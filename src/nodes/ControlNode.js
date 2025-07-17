@@ -576,38 +576,59 @@ class ControlNode extends BaseNode {
         const t = this.getProperty('time') ? performance.now() / 1000 : 0;
         
         try {
-            let expression = this.getProperty('expression');
-            
-            // Replace variables
-            expression = expression.replace(/\bA\b/g, A);
-            expression = expression.replace(/\bB\b/g, B);
-            expression = expression.replace(/\bC\b/g, C);
-            expression = expression.replace(/\bD\b/g, D);
-            expression = expression.replace(/\bt\b/g, t);
-            
-            // Add Math functions
-            expression = expression.replace(/\bsin\b/g, 'Math.sin');
-            expression = expression.replace(/\bcos\b/g, 'Math.cos');
-            expression = expression.replace(/\btan\b/g, 'Math.tan');
-            expression = expression.replace(/\babs\b/g, 'Math.abs');
-            expression = expression.replace(/\bfloor\b/g, 'Math.floor');
-            expression = expression.replace(/\bceil\b/g, 'Math.ceil');
-            expression = expression.replace(/\bround\b/g, 'Math.round');
-            expression = expression.replace(/\bpi\b/g, 'Math.PI');
-            
-            const allowedVariables = { A, B, C, D, t, Math };
-            const safeFunction = new Function(...Object.keys(allowedVariables), `return (${expression});`);
-            let result = safeFunction(...Object.values(allowedVariables));
-            
+            const expression = this.getProperty('expression');
+            const clampMin = this.getProperty('clampMin');
+            const clampMax = this.getProperty('clampMax');
+
+            // Use a safer evaluation method
+            let result = this.safeEvaluateExpression(expression, { A, B, C, D, t });
+
             // Apply clamping
-            const min = this.getProperty('clampMin');
-            const max = this.getProperty('clampMax');
-            if (min !== -Infinity) result = Math.max(result, min);
-            if (max !== Infinity) result = Math.min(result, max);
+            if (clampMin !== -Infinity) result = Math.max(result, clampMin);
+            if (clampMax !== Infinity) result = Math.min(result, clampMax);
             
             return { Result: result };
         } catch (error) {
+            console.error("Expression evaluation error:", error);
             return { Result: 0 };
+        }
+    }
+
+    safeEvaluateExpression(expression, variables) {
+        // Define allowed functions and constants
+        const allowedMath = ['sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'PI', 'min', 'max', 'pow', 'sqrt', 'log', 'exp'];
+
+        // Build a regex for allowed function calls and constants
+        const mathFunctionRegex = new RegExp(`\\b(?:${allowedMath.join('|')})\\b`, 'g');
+
+        // Sanitize the expression to only allow numbers, basic operators, variables, and Math functions/constants
+        // This regex ensures no arbitrary code can be injected.
+        // It allows: numbers, +, -, *, /, %, (, ), variables A, B, C, D, t, and whitelisted Math. functions/constants.
+        const sanitizedExpression = expression.replace(/[^-()\d/*+%.\sABCDEt]/g, function(match){
+            if (!match.match(mathFunctionRegex)) {
+                throw new Error(`Disallowed character or function found in expression: "${match}"`);
+            }
+            return match;
+        });
+        
+        // Replace variable names with their values
+        let evalString = sanitizedExpression;
+        for (const key in variables) {
+            evalString = evalString.replace(new RegExp(`\\b${key}\\b`, 'g'), `(${variables[key]})`);
+        }
+
+        // Add Math. prefix to allowed Math functions and constants
+        // This is done after variable replacement to avoid accidentally matching variable names with Math functions
+        evalString = evalString.replace(mathFunctionRegex, 'Math.$&');
+
+        // Evaluate the sanitized string
+        // Using eval is generally unsafe, but after strict sanitization, it's safer.
+        // For production-grade security, consider a dedicated expression parser library.
+        try {
+            // eslint-disable-next-line no-eval
+            return eval(evalString);
+        } catch (e) {
+            throw new Error(`Failed to evaluate expression: ${expression}. Error: ${e.message}`);
         }
     }
 

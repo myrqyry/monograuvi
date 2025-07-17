@@ -66,6 +66,34 @@ IMAGE_SIGNATURES = {
 class FileValidator:
     """Robust file validation using multiple methods."""
 
+    def validate_path_is_safe(self, base_path: str, user_path: str) -> bool:
+        """
+        Validate that the user-provided path is securely within the base path.
+        Prevents path traversal attacks.
+
+        Args:
+            base_path: The secure base directory.
+            user_path: The user-provided file path or filename.
+
+        Returns:
+            True if the path is safe, False otherwise.
+        """
+        try:
+            # Resolve the absolute path of the base directory
+            resolved_base_path = Path(base_path).resolve()
+
+            # Resolve the absolute path of the requested file by joining it with the base path
+            # and then resolving. This is the crucial step to prevent traversal.
+            resolved_user_path = (resolved_base_path / user_path).resolve()
+
+            # Check if the resolved user path is a subdirectory of (or same as) the base path.
+            # This is a reliable way to check for path traversal on different OS.
+            return resolved_user_path.is_relative_to(resolved_base_path)
+            
+        except Exception as e:
+            logger.error(f"Error during path validation for user_path='{user_path}' in base_path='{base_path}': {e}")
+            return False
+
     def validate_audio_file_from_path(self, file_path: str) -> Tuple[bool, str]:
         """
         Validate audio file using file path.

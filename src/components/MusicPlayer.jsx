@@ -30,6 +30,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(true);
   const [audioUrl, setAudioUrl] = useState(null);
+  const timeoutRef = useRef(null);
 
   // Get state and actions from store
   const {
@@ -141,8 +142,13 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     };
 
     // Small delay to ensure DOM has updated
-    const timeoutId = setTimeout(checkTextOverflow, 100);
-    return () => clearTimeout(timeoutId);
+    timeoutRef.current = setTimeout(checkTextOverflow, 100);
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
   }, [trackTitle, trackArtist]);
 
   const handlePlayPause = () => {
@@ -166,6 +172,11 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Clean up previous audio URL if it exists
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+
       // Ensure AudioContext is initialized or resumed
       if (!audioContext) { // Use destructured audioContext
         const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -195,13 +206,6 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
 
       // Analyze audio features
       analyzeAudioFile(file);
-
-      // Revoke the object URL after it's no longer needed
-      // It's better to revoke it once the analysis is also done or if analysis fails.
-      // For now, keeping original behavior, but this might need adjustment.
-      audio.addEventListener('loadeddata', () => {
-        // URL.revokeObjectURL(url); // Consider moving this if 'url' is needed longer by analysis
-      }, { once: true });
     }
   };
 
@@ -305,6 +309,19 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   };
 
   // Volume knob component with vertical controls
+  // Clean up object URL when component unmounts or URL changes
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [audioUrl]);
+
   const VolumeKnob = ({ volume, onChange }) => {
     const handleMouseDown = (e) => {
       const rect = e.currentTarget.getBoundingClientRect();

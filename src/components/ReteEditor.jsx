@@ -50,7 +50,7 @@ function CustomNodeWrapper(props) {
 }
 
 
-export function ReteEditorComponent() {
+export function ReteEditor() {
   const editorContainerRef = useRef(null);
   const setEditorType = useStore(state => state.setEditorType);
 
@@ -87,28 +87,23 @@ export function ReteEditorComponent() {
 
   // Effect for initializing and cleaning up the Rete editor
   useEffect(() => {
-    if (!editorContainerRef.current) return null;
+    if (!editorContainerRef.current) return;
 
-    setEditorType('rete'); // Set editor type to Rete on mount
-    keepProcessingRef.current = true; // Ensure processing is enabled on setup
+    setEditorType('rete');
+    keepProcessingRef.current = true;
 
     const editor = new NodeEditor();
-    editorRef.current = editor;
     const area = new AreaPlugin(editorContainerRef.current);
     const connection = new ConnectionPlugin();
     const render = new ReactPlugin();
-    
-    // Initialize history plugin with proper configuration
     const history = new HistoryPlugin();
-HistoryExtensions.keyboard(history);
-    
-    // Set a reference to the history plugin for undo/redo operations
+
+    editorRef.current = editor;
     historyRef.current = history;
 
-    const engine = new DataflowEngine({
-        resolve(id) { return editor.getNode(id) || null; }
-    });
-    dataflowEngineRef.current = engine;
+    // This is the crucial part: editor must use the area plugin
+    // BEFORE the area plugin uses other plugins. This establishes the parent scope.
+    editor.use(area);
 
     const handleNodePropertyChangeForZustand = (nodeId, propertyKey, newValue) => {
       updateReteNodeDataInStore(nodeId, { [propertyKey]: newValue });
@@ -135,7 +130,7 @@ HistoryExtensions.keyboard(history);
       items: ContextMenuPresets.classic.setup([
         ['Global/Playhead', () => setupNewNode(new PlayheadReteNode())],
         ['Animation/Dance Motion', () => setupNewNode(new DanceMotionReteNode())],
-        ['Audio/Audio Source', () => setupNewNode(new AudioSourceReteNode({isPlaying: false, volume: 0.5}))],
+        ['Audio/Audio Source', () => setupNewNode(new AudioSourceReteNode({ isPlaying: false, volume: 0.5 }))],
         ['Audio/Lyric Transcriber', () => setupNewNode(new LyricTranscriberReteNode())],
         ['Audio/Audio Filter', () => setupNewNode(new AudioFilterReteNode())],
         ['Control/LFO', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
@@ -158,79 +153,42 @@ HistoryExtensions.keyboard(history);
         ['Visual/Flow Field', () => setupNewNode(new FlowFieldReteNode())],
       ]),
     });
+
+    // Now, register plugins with the area
     area.use(contextMenu);
-
-    // Set up node selection with maximum compatibility
-    try {
-      // Check if AreaExtensions has the required methods
-      if (typeof AreaExtensions.selectableNodes === 'function') {
-        // Try to set up node selection with the most common pattern first
-        try {
-          // Pattern 1: Using selector and accumulating options
-          if (typeof AreaExtensions.selector === 'function' && 
-              typeof AreaExtensions.accumulateOnCtrl === 'function') {
-            const selector = AreaExtensions.selector();
-            const accumulating = AreaExtensions.accumulateOnCtrl();
-            AreaExtensions.selectableNodes(area, selector, { accumulating });
-          } 
-          // Pattern 2: Just pass the area
-          else {
-            AreaExtensions.selectableNodes(area);
-          }
-        } catch (selectError) {
-          console.warn('Error setting up node selection with standard pattern:', selectError);
-          // Try the minimal setup
-          AreaExtensions.selectableNodes(area);
-        }
-      }
-
-      // Set up history if available
-      if (typeof AreaExtensions.history === 'function') {
-        try {
-          AreaExtensions.history({ H: HistoryPlugin, keyboard: true })(area);
-        } catch (historyError) {
-          console.warn('Error setting up history:', historyError);
-        }
-      }
-
-      // Set up other extensions if available
-      const setupExtension = (name, ...args) => {
-        if (typeof AreaExtensions[name] === 'function') {
-          try {
-            AreaExtensions[name](...args);
-          } catch (e) {
-            console.warn(`Error setting up ${name}:`, e);
-          }
-        }
-      };
-
-      // Set up other common extensions
-      setupExtension('snapGrid', area, { size: 10 });
-      
-      // Only try to zoom if we have nodes
-      if (editor.getNodes().length > 0) {
-        setupExtension('zoomAt', area, editor.getNodes());
-      }
-      
-      setupExtension('keyboard', area);
-      
-    } catch (error) {
-      console.error('Error in editor setup:', error);
-    }
-
-    editor.use(area);
     area.use(connection);
     area.use(render);
     area.use(history);
-    
-    // Add the preset for the connection plugin (Rete.js v2 best practice)
+
+    // Configure plugins
     connection.addPreset(ConnectionPresets.classic.setup());
+    render.addPreset(Presets.classic.setup({
+        customize: {
+            node(data) {
+                return CustomNodeWrapper;
+            },
+        }
+    }));
+    
+    HistoryExtensions.keyboard(history);
+
+
+    const engine = new DataflowEngine({
+      resolve(id) { return editor.getNode(id) || null; }
+    });
+    dataflowEngineRef.current = engine;
+
+    // Set up node selection and other extensions
+    const selector = AreaExtensions.selector();
+    const accumulating = AreaExtensions.accumulateOnCtrl();
+    AreaExtensions.selectableNodes(area, selector, { accumulating });
+    AreaExtensions.snapGrid(area, { size: 15 });
+    
 
     const subs = [
       editor.addPipe(context => {
         if (context.type === 'nodecreated') {
           const node = context.data;
-          // Call onNodeAdded hook if it exists
           if (typeof node.onNodeAdded === 'function') {
             node.onNodeAdded();
           }
@@ -296,11 +254,20 @@ HistoryExtensions.keyboard(history);
         setReteGraphState({ nodes: nodesForStore, connections: connectionsForStore });
     };
 
-    if (history?.on) {
-      history.on('change', syncGraphToStore);
-    } else {
-      console.warn("HistoryPlugin is not properly initialized. Skipping history change listener.");
-    }
+
+    // Listen for node and connection changes to sync with store
+    const unsubscribeNodes = editor.addPipe(context => {
+      const syncEvents = [
+        'nodecreated', 'noderemoved', 'noderemoving',
+        'connectioncreated', 'connectionremoved', 'connectionremoving',
+        'nodetranslated'
+      ];
+      
+      if (syncEvents.includes(context.type)) {
+        syncGraphToStore();
+      }
+      return context;
+    });
 
     const processLoop = async () => {
       if (!keepProcessingRef.current || !editorRef.current || !dataflowEngineRef.current) return;
@@ -321,22 +288,57 @@ HistoryExtensions.keyboard(history);
       history.record();
 
       setTimeout(() => {
-        AreaExtensions.zoomAt(area, editor.getNodes());
+        if (editor.getNodes().length > 0) {
+            AreaExtensions.zoomAt(area, editor.getNodes());
+        }
         // Processing loop will be started by the audioContext effect if context is available
       }, 100);
     })();
 
     return () => {
+      // Stop processing loop first
       keepProcessingRef.current = false;
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
       }
-      subs.forEach(unsubscribe => unsubscribe());
-      history.off('change', syncGraphToStore);
-      if (dataflowEngineRef.current) dataflowEngineRef.current.reset();
-      if (area && typeof area.destroy === 'function') area.destroy();
-      if (editor && typeof editor.destroy === 'function') editor.destroy();
+      
+      // Clean up event listeners
+      subs.forEach(unsub => {
+        try {
+          unsub();
+        } catch (e) {
+          console.warn("Error during event listener cleanup:", e);
+        }
+      });
+      
+      if (unsubscribeNodes) {
+        try {
+          unsubscribeNodes();
+        } catch (e) {
+          console.warn("Error during node subscription cleanup:", e);
+        }
+      }
+
+      // Destroy instances in reverse order of creation
+      try {
+        if (history) {
+          history.destroy();
+          historyRef.current = null;
+        }
+        if (render) render.destroy();
+        if (connection) connection.destroy();
+        if (area) area.destroy();
+        if (editor) {
+          editor.destroy();
+          editorRef.current = null;
+        }
+        dataflowEngineRef.current = null;
+      } catch (e) {
+        console.warn("Error during plugin cleanup:", e);
+      }
     };
+
   }, []); // Initial setup effect, runs once
 
   // Effect for starting/stopping processing loop based on audioContext availability
@@ -390,4 +392,4 @@ HistoryExtensions.keyboard(history);
   );
 }
 
-export default ReteEditorComponent;
+export default ReteEditor; // Keep default export for backward compatibility
