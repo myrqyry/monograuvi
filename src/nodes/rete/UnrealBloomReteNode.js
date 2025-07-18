@@ -1,5 +1,4 @@
 import { BaseVisualReteNode } from './BaseVisualReteNode';
-import { classic } from 'rete';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -7,27 +6,49 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import * as THREE from 'three';
 
 export class UnrealBloomReteNode extends BaseVisualReteNode {
-  constructor(initialData = {}) {
-    super('Unreal Bloom', { visualType: 'unreal-bloom', ...initialData });
+  constructor(initialCustomData = {}) {
+    super('Unreal Bloom', { visualType: 'unreal-bloom', customData: initialCustomData });
     
-    this.addInput('scene', new classic.Input(this.sockets.scene, 'Scene'));
-    this.addInput('camera', new classic.Input(this.sockets.camera, 'Camera'));
-    this.addInput('renderer', new classic.Input(this.sockets.renderer, 'Renderer'));
+    // Define Inputs using the helper methods from MyBaseReteNode
+    this.addInputWithLabel('scene', 'Scene');
+    this.addInputWithLabel('camera', 'Camera');
+    this.addInputWithLabel('renderer', 'Renderer');
 
-    this.addOutput('scene', new classic.Output(this.sockets.scene, 'Scene'));
+    // Define Outputs using the helper methods from MyBaseReteNode
+    this.addOutputWithLabel('scene', 'Scene');
 
-    this.addControl('threshold', new classic.Control('number', { label: 'Threshold', initial: 0.21 }));
-    this.addControl('strength', new classic.Control('number', { label: 'Strength', initial: 1.5 }));
-    this.addControl('radius', new classic.Control('number', { label: 'Radius', initial: 0.55 }));
+    // Define Controls using the helper methods from MyBaseReteNode
+    this.addControlWithLabel('threshold', 'number', 'Threshold', {
+      initial: initialCustomData.threshold || 0.21,
+      min: 0,
+      max: 1,
+      step: 0.01
+    });
+    this.addControlWithLabel('strength', 'number', 'Strength', {
+      initial: initialCustomData.strength || 1.5,
+      min: 0,
+      max: 5,
+      step: 0.1
+    });
+    this.addControlWithLabel('radius', 'number', 'Radius', {
+      initial: initialCustomData.radius || 0.55,
+      min: 0,
+      max: 1,
+      step: 0.01
+    });
 
     this.composer = null;
   }
 
-  async execute(inputs, forward) {
-    const { scene, camera, renderer } = inputs;
+  // Use the data method for Rete v2 dataflow pattern
+  data(inputs) {
+    // Get input values from the inputs object
+    const scene = inputs.scene && inputs.scene.length > 0 ? inputs.scene[0] : null;
+    const camera = inputs.camera && inputs.camera.length > 0 ? inputs.camera[0] : null;
+    const renderer = inputs.renderer && inputs.renderer.length > 0 ? inputs.renderer[0] : null;
 
     if (!scene || !camera || !renderer) {
-      return;
+      return { scene: null };
     }
 
     if (!this.composer) {
@@ -43,12 +64,12 @@ export class UnrealBloomReteNode extends BaseVisualReteNode {
     }
 
     const bloomPass = this.composer.passes[1];
-    bloomPass.threshold = this.controls.threshold.value;
-    bloomPass.strength = this.controls.strength.value;
-    bloomPass.radius = this.controls.radius.value;
+    bloomPass.threshold = this.getProperty('threshold');
+    bloomPass.strength = this.getProperty('strength');
+    bloomPass.radius = this.getProperty('radius');
 
     this.composer.render();
 
-    forward({ scene: this.composer.readBuffer.texture });
+    return { scene: this.composer.readBuffer.texture };
   }
 }

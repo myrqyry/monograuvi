@@ -1,5 +1,6 @@
 import { BaseVisualReteNode } from '../../nodes/rete/BaseVisualReteNode';
 import * as THREE from 'three';
+import { ClassicPreset as Classic } from 'rete';
 
 export class ThreeJSBaseNode extends BaseVisualReteNode {
   constructor(label, options = {}) {
@@ -60,8 +61,9 @@ export class ThreeJSBaseNode extends BaseVisualReteNode {
 
 // Define a custom socket for Three.js objects
 // This ensures type checking in Rete.js connections
-class MyCustomSocket {
+class MyCustomSocket extends Classic.Socket {
   constructor(name) {
+    super(name);
     this.name = name;
   }
   // You might add a custom `combine` method if needed for type compatibility

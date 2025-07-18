@@ -33,6 +33,7 @@ import { FileExportReteNode } from './rete/FileExportReteNode';
 import { PreviewReteNode } from './rete/PreviewReteNode';
 import { SocialExportReteNode } from './rete/SocialExportReteNode';
 import { RealTimeReteNode } from './rete/RealTimeReteNode';
+import { UnrealBloomReteNode } from './rete/UnrealBloomReteNode';
 
 // Import Three.js Nodes
 import { ThreeJSBaseNode } from '../threejs/core/ThreeJSBaseNode';
@@ -52,6 +53,12 @@ import { UnrealBloomPassNode } from '../threejs/postprocessing/UnrealBloomPassNo
 import { EffectComposerNode } from '../threejs/postprocessing/EffectComposerNode';
 import { SceneRendererNode } from '../threejs/core/SceneRendererNode';
 import { RendererNode } from '../threejs/core/RendererNode';
+
+// Import LYGIA Nodes
+import { NoiseGeneratorNode } from '../threejs/lygia/NoiseGeneratorNode';
+import { ColorPaletteNode } from '../threejs/lygia/ColorPaletteNode';
+import { DistortionNode } from '../threejs/lygia/DistortionNode';
+import { AudioReactiveNode } from '../threejs/lygia/AudioReactiveNode';
 
 // Node registry to keep track of all registered node types
 const nodeRegistry = new Map();
@@ -252,6 +259,31 @@ function registerAllNodeTypes() {
     icon: '🎛️'
   });
 
+  // LYGIA Nodes
+  registerNodeType('lygia/noise', NoiseGeneratorNode, {
+    category: 'LYGIA',
+    description: 'Generates various types of noise patterns using LYGIA functions.',
+    icon: '🌊'
+  });
+
+  registerNodeType('lygia/color', ColorPaletteNode, {
+    category: 'LYGIA',
+    description: 'Applies color palettes and transformations using LYGIA functions.',
+    icon: '🎨'
+  });
+
+  registerNodeType('lygia/distortion', DistortionNode, {
+    category: 'LYGIA',
+    description: 'Applies distortion effects using LYGIA functions.',
+    icon: '🌀'
+  });
+
+  registerNodeType('lygia/audio-reactive', AudioReactiveNode, {
+    category: 'LYGIA',
+    description: 'Creates audio-reactive effects using LYGIA functions.',
+    icon: '🔊'
+  });
+
   // Motion Nodes
   registerNodeType('motion/dance', DanceMotionReteNode, {
     category: 'Motion',
@@ -317,6 +349,12 @@ const nodeCategories = {
   'Three.js/PostProcessing': [
     'threejs/postprocessing/unrealbloom',
     'threejs/postprocessing/composer'
+  ],
+  'LYGIA': [
+    'lygia/noise',
+    'lygia/color',
+    'lygia/distortion',
+    'lygia/audio-reactive'
   ]
 };
 
@@ -384,6 +422,13 @@ const categoryConfig = {
     icon: 'ri-image-filter-fill',
     color: '#ADFF2F', // GreenYellow
     description: 'Nodes for applying post-processing effects to the rendered scene.'
+  },
+  'LYGIA': {
+    id: 'lygia',
+    name: 'LYGIA',
+    icon: 'ri-brush-3-fill',
+    color: '#FF4081', // Pink
+    description: 'Advanced shader nodes powered by the LYGIA shader library.'
   }
 };
 
@@ -416,7 +461,11 @@ const nodeTypeMapping = {
   'threejs/lighting/directional': 'Three.js/Lighting',
   'threejs/lighting/point': 'Three.js/Lighting',
   'threejs/postprocessing/unrealbloom': 'Three.js/PostProcessing',
-  'threejs/postprocessing/composer': 'Three.js/PostProcessing'
+  'threejs/postprocessing/composer': 'Three.js/PostProcessing',
+  'lygia/noise': 'LYGIA',
+  'lygia/color': 'LYGIA',
+  'lygia/distortion': 'LYGIA',
+  'lygia/audio-reactive': 'LYGIA'
 };
 
 // Node descriptions for tooltips
@@ -448,7 +497,11 @@ const nodeDescriptions = {
   'threejs/lighting/directional': 'Creates a directional light.',
   'threejs/lighting/point': 'Creates a point light.',
   'threejs/postprocessing/unrealbloom': 'Applies an Unreal Bloom post-processing effect.',
-  'threejs/postprocessing/composer': 'Manages post-processing effects.'
+  'threejs/postprocessing/composer': 'Manages post-processing effects.',
+  'lygia/noise': 'Generates various types of noise patterns using LYGIA functions.',
+  'lygia/color': 'Applies color palettes and transformations using LYGIA functions.',
+  'lygia/distortion': 'Applies distortion effects using LYGIA functions.',
+  'lygia/audio-reactive': 'Creates audio-reactive effects using LYGIA functions.'
 };
 
 // Export the public API
