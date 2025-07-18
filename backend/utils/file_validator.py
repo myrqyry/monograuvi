@@ -301,25 +301,35 @@ class FileValidator:
             return False
     
     def _validate_mp3_structure(self, file_content: bytes) -> bool:
-        """Validate MP3 file structure."""
-        if len(file_content) < 10:
+        """Validate MP3 file structure by finding a valid MPEG frame header."""
+        if len(file_content) < 4:
             return False
-        
-        # Skip ID3v2 header if present
+
         offset = 0
+        # Correctly parse ID3v2 header size to find the actual start of audio data
         if file_content.startswith(b'ID3'):
-            # ID3v2 header is 10 bytes
-            offset = 10
-        
-        # Check for MPEG frame header
-        if offset + 4 > len(file_content):
-            return False
-        
-        # Look for MPEG frame sync (0xFF followed by 0xE0-0xFF)
-        for i in range(offset, min(offset + 100, len(file_content) - 1)):
+            if len(file_content) < 10:
+                return False  # Not enough data for a full ID3v2 header
+
+            # The size is a 28-bit synchsafe integer
+            size_bytes = file_content[6:10]
+            size = 0
+            size = (size_bytes[0] & 0x7F) << 21
+            size |= (size_bytes[1] & 0x7F) << 14
+            size |= (size_bytes[2] & 0x7F) << 7
+            size |= (size_bytes[3] & 0x7F)
+            
+            # Total offset is the 10-byte header plus the tag's content size
+            offset = 10 + size
+
+        # After the ID3 tag (if any), look for the first MPEG frame sync
+        # A frame sync is 11 bits set to 1 (0xFF followed by a byte starting with 0xE)
+        search_limit = min(offset + 4096, len(file_content) - 1) # Search in the first 4KB after header
+        for i in range(offset, search_limit):
             if file_content[i] == 0xFF and (file_content[i + 1] & 0xE0) == 0xE0:
-                return True
-        
+                return True  # Found a valid frame sync
+
+        # If no frame sync is found after the ID3 tag, it's likely not a valid MP3
         return False
     
     def _validate_wav_structure(self, file_content: bytes) -> bool:

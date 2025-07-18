@@ -190,13 +190,17 @@ class MLModelManager:
             predictions = model(features_tensor)
         return predictions.cpu().numpy()[0]
 
-    async def classify_audio_genre(self, mfcc_features: np.ndarray) -> Dict[str, Any]:
+    async def classify_audio_genre(self, mfcc_features: Union[np.ndarray, List]) -> Dict[str, Any]:
         """Classify audio genre using MFCC features."""
         try:
             if 'audio_classifier' not in self.models:
                 raise ValueError("Audio classifier not loaded")
             
             model = self.models['audio_classifier']
+            
+            # Ensure mfcc_features is a numpy array
+            if isinstance(mfcc_features, list):
+                mfcc_features = np.array(mfcc_features)
             
             # Prepare features
             if len(mfcc_features.shape) > 1:

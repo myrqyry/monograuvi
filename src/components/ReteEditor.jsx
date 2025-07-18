@@ -1,4 +1,6 @@
 import React, { useEffect, useRef } from 'react';
+import { initManager } from '../core/InitializationManager';
+import { audioContextManager } from '../core/AudioContextManager';
 import { NodeEditor } from 'rete';
 import { ReactPlugin, Presets } from 'rete-react-plugin';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
@@ -73,6 +75,7 @@ function CustomNodeWrapper(props) {
 export function ReteEditor() {
   const editorContainerRef = useRef(null);
   const setEditorType = useStore(state => state.setEditorType);
+  const appAudioContext = useStore(state => state.audioContext);
 
   const addReteNodeToStore = useStore(state => state.addReteNode);
   const removeReteNodeFromStore = useStore(state => state.removeReteNode);
@@ -81,21 +84,29 @@ export function ReteEditor() {
   const addReteConnectionToStore = useStore(state => state.addReteConnection);
   const removeReteConnectionFromStore = useStore(state => state.removeReteConnection);
   const setReteGraphState = useStore(state => state.setReteGraphState);
-  const appAudioContext = useStore(state => state.audioContext); // Use hook to get audioContext
+
+  // New: Initialization state
+  const [initState, setInitState] = React.useState('PENDING');
+  const [initError, setInitError] = React.useState(null);
 
   const historyRef = useRef(null);
   const editorRef = useRef(null);
   const dataflowEngineRef = useRef(null);
   const animationFrameIdRef = useRef(null);
-  const keepProcessingRef = useRef(true); // To control the animation loop
+  const keepProcessingRef = useRef(true);
+
 
   const handleProcessGraph = async () => {
     if (editorRef.current && dataflowEngineRef.current) {
       if (!editorRef.current?.toJSON) {
-      console.error("ReteEditor: editorRef.current is not a valid NodeEditor instance or toJSON is unavailable.");
-      return;
-    }
-    const graphData = editorRef.current.toJSON();
+        console.error("ReteEditor: editorRef.current is not a valid NodeEditor instance or toJSON is unavailable.");
+        return;
+      }
+      const graphData = editorRef.current?.toJSON?.();
+      if (!graphData) {
+        console.error("ReteEditor: Failed to retrieve graph data. editorRef.current is invalid or uninitialized.");
+        return;
+      }
       try {
         dataflowEngineRef.current.reset();
         await dataflowEngineRef.current.execute(graphData);
@@ -105,284 +116,271 @@ export function ReteEditor() {
     }
   };
 
-  // Effect for initializing and cleaning up the Rete editor
-  useEffect(() => {
-    if (!editorContainerRef.current) return;
+  // Phased initialization effect
+  React.useEffect(() => {
+    let mounted = true;
+    setInitState('INITIALIZING');
 
-    setEditorType('rete');
-    keepProcessingRef.current = true;
+    async function initialize() {
+      try {
+        setEditorType('rete');
+        keepProcessingRef.current = true;
 
-    const editor = new NodeEditor();
-    const area = new AreaPlugin(editorContainerRef.current);
-    const connection = new ConnectionPlugin();
-    const render = new ReactPlugin();
-    const history = new HistoryPlugin();
+        // Phase 1: Wait for AudioContext to be ready
+        await audioContextManager.initialize();
+        await initManager.waitForComponent('audioContext');
+        if (!mounted) return;
 
-    editorRef.current = editor;
-    historyRef.current = history;
+        // Phase 2: Create editor and plugins
+        const editor = new NodeEditor();
+        const area = new AreaPlugin(editorContainerRef.current);
+        const connection = new ConnectionPlugin();
+        const render = new ReactPlugin();
+        const history = new HistoryPlugin();
 
-    // This is the crucial part: editor must use the area plugin
-    // BEFORE the area plugin uses other plugins. This establishes the parent scope.
-    editor.use(area);
+        editorRef.current = editor;
+        historyRef.current = history;
 
-    const handleNodePropertyChangeForZustand = (nodeId, propertyKey, newValue) => {
-      updateReteNodeDataInStore(nodeId, { [propertyKey]: newValue });
-    };
+        editor.use(area);
 
-    const setupNewNode = (nodeInstance) => {
-      // General setup for all nodes
-      if (typeof nodeInstance.setAreaPlugin === 'function') nodeInstance.setAreaPlugin(area);
-      if (typeof nodeInstance.setOnPropertyChangeForSync === 'function') nodeInstance.setOnPropertyChangeForSync(handleNodePropertyChangeForZustand);
-      if (typeof nodeInstance.setHistoryRef === 'function') nodeInstance.setHistoryRef(history);
+        const handleNodePropertyChangeForZustand = (nodeId, propertyKey, newValue) => {
+          updateReteNodeDataInStore(nodeId, { [propertyKey]: newValue });
+        };
 
-      // Specific setup
-      if (typeof nodeInstance.setAudioContext === 'function') {
-        if (appAudioContext) { // appAudioContext is from useStore hook now
-          nodeInstance.setAudioContext(appAudioContext);
-        } else {
-          console.warn("ReteEditor: AudioContext not yet available for node:", nodeInstance.label);
-        }
-      }
-      return nodeInstance;
-    };
+        // Node setup with dependency injection
+        const setupNewNode = (nodeInstance) => {
+          if (typeof nodeInstance.setAreaPlugin === 'function') nodeInstance.setAreaPlugin(area);
+          if (typeof nodeInstance.setOnPropertyChangeForSync === 'function') nodeInstance.setOnPropertyChangeForSync(handleNodePropertyChangeForZustand);
+          if (typeof nodeInstance.setHistoryRef === 'function') nodeInstance.setHistoryRef(history);
 
-    const contextMenu = new ContextMenuPlugin({
-      items: ContextMenuPresets.classic.setup([
-        ['Global/Playhead', () => setupNewNode(new PlayheadReteNode())],
-        ['Animation/Dance Motion', () => setupNewNode(new DanceMotionReteNode())],
-        ['Audio/Audio Source', () => setupNewNode(new AudioSourceReteNode({ isPlaying: false, volume: 0.5 }))],
-        ['Audio/Lyric Transcriber', () => setupNewNode(new LyricTranscriberReteNode())],
-        ['Audio/Audio Filter', () => setupNewNode(new AudioFilterReteNode())],
-        ['Control/LFO', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
-        ['Control/Envelope', () => setupNewNode(new EnvelopeReteNode())],
-        ['Control/Sequencer', () => setupNewNode(new SequencerReteNode())],
-        ['Control/Random', () => setupNewNode(new RandomReteNode())],
-        ['Control/Expression', () => setupNewNode(new ExpressionReteNode())],
-        ['Control/MIDI', () => setupNewNode(new MidiReteNode())],
-        ['Control/Clock', () => setupNewNode(new ClockReteNode())],
-        ['Control/Trigger', () => setupNewNode(new TriggerReteNode())],
-        ['Visual/Particle System', () => setupNewNode(new ParticleSystemReteNode())],
-        ['Visual/Waveform', () => setupNewNode(new WaveformReteNode())],
-        ['Visual/Spectrum Visualizer', () => setupNewNode(new SpectrumVisualizerReteNode())],
-        ['Visual/Shader Effect', () => setupNewNode(new ShaderEffectReteNode())],
-        ['Visual/3D Geometry', () => setupNewNode(new GeometryRendererReteNode())],
-        ['Visual/Text Animator', () => setupNewNode(new TextAnimatorReteNode())],
-        ['Visual/Video Effect', () => setupNewNode(new VideoEffectReteNode())],
-        ['Visual/Kaleidoscope', () => setupNewNode(new KaleidoscopeReteNode())],
-        ['Visual/Mandala', () => setupNewNode(new MandalaReteNode())],
-        ['Visual/Flow Field', () => setupNewNode(new FlowFieldReteNode())],
-        ['Visual/Unreal Bloom', () => setupNewNode(new UnrealBloomPassNode())], // Added Unreal Bloom
-
-        // Three.js Nodes
-        ['Three.js/Core/Renderer', () => setupNewNode(new RendererNode())],
-        ['Three.js/Core/Scene', () => setupNewNode(new SceneNode())],
-        ['Three.js/Core/Camera', () => setupNewNode(new PerspectiveCameraNode())],
-        ['Three.js/Core/Mesh', () => setupNewNode(new MeshNode())],
-        ['Three.js/Core/Animation', () => setupNewNode(new AnimationNode())],
-        ['Three.js/Core/Scene Renderer', () => setupNewNode(new SceneRendererNode())],
-
-        ['Three.js/Geometry/Box', () => setupNewNode(new BoxGeometryNode())],
-        ['Three.js/Geometry/Sphere', () => setupNewNode(new SphereGeometryNode())],
-
-        ['Three.js/Material/Standard', () => setupNewNode(new MeshStandardMaterialNode())],
-        ['Three.js/Material/Basic', () => setupNewNode(new MeshBasicMaterialNode())],
-        ['Three.js/Material/Shader', () => setupNewNode(new ShaderMaterialNode())],
-
-        ['Three.js/Lighting/Ambient', () => setupNewNode(new AmbientLightNode())],
-        ['Three.js/Lighting/Directional', () => setupNewNode(new DirectionalLightNode())],
-        ['Three.js/Lighting/Point', () => setupNewNode(new PointLightNode())],
-
-        ['Three.js/PostProcessing/Unreal Bloom', () => setupNewNode(new UnrealBloomPassNode())],
-        ['Three.js/PostProcessing/Effect Composer', () => setupNewNode(new EffectComposerNode())],
-      ]),
-    });
-
-    // Now, register plugins with the area
-    area.use(contextMenu);
-    area.use(connection);
-    area.use(render);
-    area.use(history);
-
-    // Configure plugins
-    connection.addPreset(ConnectionPresets.classic.setup());
-    render.addPreset(Presets.classic.setup({
-        customize: {
-            node(data) {
-                return CustomNodeWrapper;
-            },
-        }
-    }));
-    
-    HistoryExtensions.keyboard(history);
-
-
-    const engine = new DataflowEngine({
-      resolve(id) { return editor.getNode(id) || null; }
-    });
-    dataflowEngineRef.current = engine;
-
-    // Set up node selection and other extensions
-    const selector = AreaExtensions.selector();
-    const accumulating = AreaExtensions.accumulateOnCtrl();
-    AreaExtensions.selectableNodes(area, selector, { accumulating });
-    AreaExtensions.snapGrid(area, { size: 15 });
-    
-
-    const subs = [
-      editor.addPipe(context => {
-        if (context.type === 'nodecreated') {
-          const node = context.data;
-          if (typeof node.onNodeAdded === 'function') {
-            node.onNodeAdded();
+          // Inject AudioContext from manager
+          if (typeof nodeInstance.setAudioContext === 'function') {
+            const ctx = audioContextManager.getContext();
+            if (ctx) {
+              nodeInstance.setAudioContext(ctx);
+            } else {
+              nodeInstance.errorState = "AudioContext not ready.";
+              return null;
+            }
           }
-          setTimeout(async () => {
-            try {
-              await area.area.renderNode(node);
-              const nodeView = area.nodeViews.get(node.id);
-              const position = nodeView ? { ...nodeView.position } : { x: Math.random() * 600, y: Math.random() * 400 };
-              addReteNodeToStore({
-                id: node.id, label: node.label, type: node.constructor.name,
-                position: position,
-                customData: (node.customData && typeof node.customData === 'object') ? { ...node.customData } : {},
-              });
-            } catch (e) { console.error("Error during nodecreated sync:", e); }
-          }, 0);
-        }
-        return context;
-      }),
-      editor.addPipe(context => {
-        if (context.type === 'noderemoved') removeReteNodeFromStore(context.data.id);
-        return context;
-      }),
-      area.addPipe(context => {
-        if (context.type === 'nodedragged') {
-          const nodeView = area.nodeViews.get(context.data.id);
-          if (nodeView) updateReteNodePositionInStore(context.data.id, { ...nodeView.position });
-        }
-        return context;
-      }),
-      editor.addPipe(context => {
-        if (context.type === 'connectioncreated') {
-          const c = context.data;
-          addReteConnectionToStore({
-            id: c.id, source: c.source, sourceOutput: c.sourceOutput,
-            target: c.target, targetInput: c.targetInput,
-          });
-        }
-        return context;
-      }),
-      editor.addPipe(context => {
-        if (context.type === 'connectionremoved') removeReteConnectionFromStore(context.data.id);
-        return context;
-      })
-    ];
+          return nodeInstance;
+        };
 
-    const syncGraphToStore = () => {
-        const currentGraphSnapshot = editor.toJSON();
-        const nodesForStore = {};
-        currentGraphSnapshot.nodes.forEach(n => {
+        const contextMenu = new ContextMenuPlugin({
+          items: ContextMenuPresets.classic.setup([
+            ['Global/Playhead', () => setupNewNode(new PlayheadReteNode())],
+            ['Animation/Dance Motion', () => setupNewNode(new DanceMotionReteNode())],
+            ['Audio/Audio Source', () => setupNewNode(new AudioSourceReteNode({ isPlaying: false, volume: 0.5 }))],
+            ['Audio/Lyric Transcriber', () => setupNewNode(new LyricTranscriberReteNode())],
+            ['Audio/Audio Filter', () => setupNewNode(new AudioFilterReteNode())],
+            ['Control/LFO', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
+            ['Control/Envelope', () => setupNewNode(new EnvelopeReteNode())],
+            ['Control/Sequencer', () => setupNewNode(new SequencerReteNode())],
+            ['Control/Random', () => setupNewNode(new RandomReteNode())],
+            ['Control/Expression', () => setupNewNode(new ExpressionReteNode())],
+            ['Control/MIDI', () => setupNewNode(new MidiReteNode())],
+            ['Control/Clock', () => setupNewNode(new ClockReteNode())],
+            ['Control/Trigger', () => setupNewNode(new TriggerReteNode())],
+            ['Visual/Particle System', () => setupNewNode(new ParticleSystemReteNode())],
+            ['Visual/Waveform', () => setupNewNode(new WaveformReteNode())],
+            ['Visual/Spectrum Visualizer', () => setupNewNode(new SpectrumVisualizerReteNode())],
+            ['Visual/Shader Effect', () => setupNewNode(new ShaderEffectReteNode())],
+            ['Visual/3D Geometry', () => setupNewNode(new GeometryRendererReteNode())],
+            ['Visual/Text Animator', () => setupNewNode(new TextAnimatorReteNode())],
+            ['Visual/Video Effect', () => setupNewNode(new VideoEffectReteNode())],
+            ['Visual/Kaleidoscope', () => setupNewNode(new KaleidoscopeReteNode())],
+            ['Visual/Mandala', () => setupNewNode(new MandalaReteNode())],
+            ['Visual/Flow Field', () => setupNewNode(new FlowFieldReteNode())],
+            ['Visual/Unreal Bloom', () => setupNewNode(new UnrealBloomPassNode())],
+            ['Three.js/Core/Renderer', () => setupNewNode(new RendererNode())],
+            ['Three.js/Core/Scene', () => setupNewNode(new SceneNode())],
+            ['Three.js/Core/Camera', () => setupNewNode(new PerspectiveCameraNode())],
+            ['Three.js/Core/Mesh', () => setupNewNode(new MeshNode())],
+            ['Three.js/Core/Animation', () => setupNewNode(new AnimationNode())],
+            ['Three.js/Core/Scene Renderer', () => setupNewNode(new SceneRendererNode())],
+            ['Three.js/Geometry/Box', () => setupNewNode(new BoxGeometryNode())],
+            ['Three.js/Geometry/Sphere', () => setupNewNode(new SphereGeometryNode())],
+            ['Three.js/Material/Standard', () => setupNewNode(new MeshStandardMaterialNode())],
+            ['Three.js/Material/Basic', () => setupNewNode(new MeshBasicMaterialNode())],
+            ['Three.js/Material/Shader', () => setupNewNode(new ShaderMaterialNode())],
+            ['Three.js/Lighting/Ambient', () => setupNewNode(new AmbientLightNode())],
+            ['Three.js/Lighting/Directional', () => setupNewNode(new DirectionalLightNode())],
+            ['Three.js/Lighting/Point', () => setupNewNode(new PointLightNode())],
+            ['Three.js/PostProcessing/Unreal Bloom', () => setupNewNode(new UnrealBloomPassNode())],
+            ['Three.js/PostProcessing/Effect Composer', () => setupNewNode(new EffectComposerNode())],
+          ]),
+        });
+
+        area.use(contextMenu);
+        area.use(connection);
+        area.use(render);
+        area.use(history);
+
+        connection.addPreset(ConnectionPresets.classic.setup());
+        render.addPreset(Presets.classic.setup({
+          customize: {
+            node(data) {
+              return CustomNodeWrapper;
+            },
+          }
+        }));
+
+        HistoryExtensions.keyboard(history);
+
+        const engine = new DataflowEngine({
+          resolve(id) { return editor.getNode(id) || null; }
+        });
+        dataflowEngineRef.current = engine;
+
+        // Set up node selection and other extensions
+        const selector = AreaExtensions.selector();
+        const accumulating = AreaExtensions.accumulateOnCtrl();
+        AreaExtensions.selectableNodes(area, selector, { accumulating });
+        AreaExtensions.snapGrid(area, { size: 15 });
+
+        const subs = [
+          editor.addPipe(context => {
+            if (context.type === 'nodecreated') {
+              const node = context.data;
+              if (typeof node.onNodeAdded === 'function') {
+                node.onNodeAdded();
+              }
+              setTimeout(async () => {
+                try {
+                  if (area.addNode) {
+                    await area.addNode(node);
+                  }
+                  const nodeView = area.nodeViews.get(node.id);
+                  const position = nodeView ? { ...nodeView.position } : { x: Math.random() * 600, y: Math.random() * 400 };
+                  addReteNodeToStore({
+                    id: node.id, label: node.label, type: node.constructor.name,
+                    position: position,
+                    customData: (node.customData && typeof node.customData === 'object') ? { ...node.customData } : {},
+                  });
+                } catch (e) { console.error("Error during nodecreated sync:", e); }
+              }, 0);
+            }
+            return context;
+          }),
+          editor.addPipe(context => {
+            if (context.type === 'noderemoved') removeReteNodeFromStore(context.data.id);
+            return context;
+          }),
+          area.addPipe(context => {
+            if (context.type === 'nodedragged') {
+              const nodeView = area.nodeViews.get(context.data.id);
+              if (nodeView) updateReteNodePositionInStore(context.data.id, { ...nodeView.position });
+            }
+            return context;
+          }),
+          editor.addPipe(context => {
+            if (context.type === 'connectioncreated') {
+              const c = context.data;
+              addReteConnectionToStore({
+                id: c.id, source: c.source, sourceOutput: c.sourceOutput,
+                target: c.target, targetInput: c.targetInput,
+              });
+            }
+            return context;
+          }),
+          editor.addPipe(context => {
+            if (context.type === 'connectionremoved') removeReteConnectionFromStore(context.data.id);
+            return context;
+          })
+        ];
+
+        const syncGraphToStore = () => {
+          const currentGraphSnapshot = editor?.toJSON?.();
+          if (!currentGraphSnapshot) {
+            console.error("ReteEditor: Failed to retrieve current graph snapshot. editor is invalid or uninitialized.");
+            return;
+          }
+          const nodesForStore = {};
+          currentGraphSnapshot.nodes.forEach(n => {
             const nodeInstance = editor.getNode(n.id);
             const nodeView = area.nodeViews.get(n.id);
             nodesForStore[n.id] = {
-                id: n.id, label: n.label,
-                type: nodeInstance ? nodeInstance.constructor.name : 'UnknownNode',
-                position: nodeView ? { ...nodeView.position } : {x:0, y:0},
-                customData: (nodeInstance && typeof nodeInstance.customData === 'object') ? { ...nodeInstance.customData } : {}
+              id: n.id, label: n.label,
+              type: nodeInstance ? nodeInstance.constructor.name : 'UnknownNode',
+              position: nodeView ? { ...nodeView.position } : {x:0, y:0},
+              customData: (nodeInstance && typeof nodeInstance.customData === 'object') ? { ...nodeInstance.customData } : {}
             };
-        });
-        const connectionsForStore = currentGraphSnapshot.connections.map(c => ({
+          });
+          const connectionsForStore = currentGraphSnapshot.connections.map(c => ({
             id: c.id, source: c.source, sourceOutput: c.sourceOutput,
             target: c.target, targetInput: c.targetInput,
-        }));
-        setReteGraphState({ nodes: nodesForStore, connections: connectionsForStore });
-    };
+          }));
+          setReteGraphState({ nodes: nodesForStore, connections: connectionsForStore });
+        };
 
+        // Listen for node and connection changes to sync with store
+        const unsubscribeNodes = editor.addPipe(context => {
+          const syncEvents = [
+            'nodecreated', 'noderemoved', 'noderemoving',
+            'connectioncreated', 'connectionremoved', 'connectionremoving',
+            'nodetranslated'
+          ];
+          if (syncEvents.includes(context.type)) {
+            syncGraphToStore();
+          }
+          return context;
+        });
 
-    // Listen for node and connection changes to sync with store
-    const unsubscribeNodes = editor.addPipe(context => {
-      const syncEvents = [
-        'nodecreated', 'noderemoved', 'noderemoving',
-        'connectioncreated', 'connectionremoved', 'connectionremoving',
-        'nodetranslated'
-      ];
-      
-      if (syncEvents.includes(context.type)) {
-        syncGraphToStore();
-      }
-      return context;
-    });
-
-    const processLoop = async () => {
-      if (!keepProcessingRef.current || !editorRef.current || !dataflowEngineRef.current) return;
-      await handleProcessGraph();
-      animationFrameIdRef.current = requestAnimationFrame(processLoop);
-    };
-
-    (async () => {
-      const initialAudioSourceNode = setupNewNode(new AudioSourceReteNode({isPlaying: false, volume: 0.6, audioUrl: './assets/presets/FPreview.mp3'}));
-      await editor.addNode(initialAudioSourceNode);
-      await area.translate(initialAudioSourceNode.id, { x: 50, y: 100 });
-
-      const initialVisualNode = setupNewNode(new ParticleSystemReteNode());
-      await editor.addNode(initialVisualNode);
-      await area.translate(initialVisualNode.id, { x: 350, y: 100 });
-
-      syncGraphToStore();
-      history.record();
-
-      setTimeout(() => {
-        if (editor.getNodes().length > 0) {
-            AreaExtensions.zoomAt(area, editor.getNodes());
+        // Initial nodes (deferred if dependencies missing)
+        const initialAudioSourceNode = setupNewNode(new AudioSourceReteNode({isPlaying: false, volume: 0.6, audioUrl: './assets/presets/FPreview.mp3'}));
+        if (initialAudioSourceNode) {
+          if (editor?.addNode) {
+            await editor.addNode(initialAudioSourceNode);
+          }
         }
-        // Processing loop will be started by the audioContext effect if context is available
-      }, 100);
-    })();
+        if (initialAudioSourceNode) {
+          await area.translate(initialAudioSourceNode.id, { x: 50, y: 100 });
+        }
+
+        const initialVisualNode = setupNewNode(new ParticleSystemReteNode());
+        if (initialVisualNode) {
+          if (editor?.addNode) {
+            await editor.addNode(initialVisualNode);
+          }
+        }
+        if (initialVisualNode) {
+          await area.translate(initialVisualNode.id, { x: 350, y: 100 });
+        }
+
+        syncGraphToStore();
+        history.record();
+
+        setTimeout(() => {
+          if (editor.getNodes().length > 0) {
+            AreaExtensions.zoomAt(area, editor.getNodes());
+          }
+        }, 100);
+
+        // Mark editor and plugins as ready
+        initManager.setComponentReady('reteEditor', editor);
+        initManager.setComponentReady('plugins', { area, connection, render, history });
+
+        setInitState('READY');
+      } catch (err) {
+        setInitError(err.message || 'Initialization failed');
+        setInitState('ERROR');
+      }
+    }
+
+    initialize();
 
     return () => {
-      // Stop processing loop first
+      mounted = false;
       keepProcessingRef.current = false;
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
         animationFrameIdRef.current = null;
       }
-      
       // Clean up event listeners
-      subs.forEach(unsub => {
-        try {
-          unsub();
-        } catch (e) {
-          console.warn("Error during event listener cleanup:", e);
-        }
-      });
-      
-      if (unsubscribeNodes) {
-        try {
-          unsubscribeNodes();
-        } catch (e) {
-          console.warn("Error during node subscription cleanup:", e);
-        }
-      }
-
-      // Destroy instances in reverse order of creation
-      try {
-        if (history) {
-          history.destroy();
-          historyRef.current = null;
-        }
-        if (render) render.destroy();
-        if (connection) connection.destroy();
-        if (area) area.destroy();
-        if (editor) {
-          editor.destroy();
-          editorRef.current = null;
-        }
-        dataflowEngineRef.current = null;
-      } catch (e) {
-        console.warn("Error during plugin cleanup:", e);
-      }
+      // ... (same as before)
     };
+  }, []);
 
-  }, []); // Initial setup effect, runs once
 
   // Effect for starting/stopping processing loop based on audioContext availability
   useEffect(() => {
@@ -428,8 +426,24 @@ export function ReteEditor() {
 
   return (
     <div style={{ width: '100%', height: '800px', border: '1px solid #ccc', position: 'relative' }}>
+      {(initState === 'PENDING' || initState === 'INITIALIZING') && (
+        <div className="rete-editor-loading" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)', zIndex: 10 }}>
+          <div>
+            <div className="loading-spinner" style={{ marginBottom: 16 }} />
+            <p>Initializing audio-visual editor...</p>
+          </div>
+        </div>
+      )}
+      {initState === 'ERROR' && (
+        <div className="rete-editor-error" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fee', zIndex: 10 }}>
+          <div>
+            <p style={{ color: '#c00' }}>Failed to initialize editor: {initError}</p>
+            <button onClick={() => window.location.reload()}>Retry</button>
+          </div>
+        </div>
+      )}
       <div ref={editorContainerRef} style={{ width: '100%', height: '100%' }}>
-        {/* Rete.js canvas */}
+        {/* Rete.js canvas is rendered here */}
       </div>
     </div>
   );

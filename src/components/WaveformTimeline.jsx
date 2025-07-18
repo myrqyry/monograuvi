@@ -74,7 +74,8 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
   useEffect(() => {
     const canvas = canvasRef.current;
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
+    if (!canvas) return;
+const rect = canvas.getBoundingClientRect();
     const newWidth = rect.width * dpr;
     const newHeight = rect.height * dpr;
 
@@ -91,9 +92,10 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
 
     const resizeObserver = new ResizeObserver(() => {
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
+        if (!canvas) return;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
         const ctx = canvas.getContext('2d');
         ctx.scale(dpr, dpr);
         drawWaveformToCache(canvas.width, canvas.height);

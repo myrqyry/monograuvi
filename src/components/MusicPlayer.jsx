@@ -221,12 +221,18 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     // import axiosInstance from '../../api/axiosInstance'; // Path might need adjustment
 
     try {
+      console.log('Starting audio analysis API call...');
+      const startTime = performance.now();
+
       // Use the new axiosInstance
       const response = await axiosInstance.post('/audio/analyze?analysis_type=full', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
+
+      const endTime = performance.now();
+      console.log(`Audio analysis API call finished in ${((endTime - startTime) / 1000).toFixed(2)} seconds.`);
 
       // Axios automatically throws for non-2xx responses, so error handling is primarily in the interceptor.
       // Successful response handling:
