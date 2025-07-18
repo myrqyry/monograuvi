@@ -181,6 +181,13 @@ src/
    npm install
    ```
 
+3. Set up backend environment variables:
+
+   ```bash
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your secrets before production
+   ```
+
 ## Usage
 
 1. Start the development server:
@@ -188,3 +195,39 @@ src/
    ```bash
    npm run dev
    ```
+
+## Docker Setup
+
+You can run the full stack using Docker:
+
+```bash
+docker-compose up --build
+```
+
+- Frontend: http://localhost
+- Backend: http://localhost:8000
+
+To build images separately:
+
+```bash
+docker build -f Dockerfile.frontend -t monograuvi-frontend .
+docker build -f backend/Dockerfile.backend -t monograuvi-backend backend
+```
+
+## CI/CD
+
+Continuous integration is set up via GitHub Actions in [.github/workflows/ci.yml](.github/workflows/ci.yml).
+- Runs tests for frontend (vitest) and backend (pytest)
+- Builds Docker images
+
+## Versioning
+
+- Frontend and backend are both versioned as **1.0.0**
+- See [package.json](package.json) and [backend/requirements.txt](backend/requirements.txt) for dependency versions
+
+## Security
+
+- Change default admin credentials in `backend/.env` before deploying
+- Never commit secrets to version control
+- See `.env.example` for required environment variables
+- Follow best practices for environment variable management

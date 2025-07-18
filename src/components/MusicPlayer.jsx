@@ -1,5 +1,6 @@
 // src/components/MusicPlayer.jsx
 import React, { useRef, useEffect, useState } from 'react';
+import { shallow } from 'zustand/shallow';
 import useStore from '../store';
 import WaveformTimeline from './WaveformTimeline';
 import axiosInstance from '../api/axiosInstance';
@@ -8,7 +9,7 @@ import axiosInstance from '../api/axiosInstance';
 const storeSelector = state => ({
   audioContext: state.audioContext,
   isPlaying: state.isPlaying,
-  currentTime: state.currentTime,
+  // Remove currentTime from global store selector
   duration: state.duration,
   setAudioBuffer: state.setAudioBuffer,
   setCurrentTime: state.setCurrentTime,
@@ -30,22 +31,11 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(true);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [localCurrentTime, setLocalCurrentTime] = useState(0); // Local playback position
   const timeoutRef = useRef(null);
 
-  // Get state and actions from store
-  const {
-    audioContext,
-    isPlaying,
-    currentTime,
-    duration,
-    setAudioBuffer,
-    setCurrentTime,
-    setIsPlaying,
-    setDuration,
-    setAudioMetadata,
-    audioMetadata,
-    setAudioContext
-  } = useStore(storeSelector);
+  // Get stable store object
+  const store = useStore(storeSelector, shallow);
 
   // Extract bpm and key for display, handling potential null values
   let displayBpm = 'N/A';
@@ -60,16 +50,35 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
 
 
   // Setup HTML5 audio element
+  // Memoize handleTimeUpdate to prevent unstable event handler
+  const handleTimeUpdate = React.useCallback(() => {
+    const audio = audioElementRef.current;
+    if (audio) {
+      setLocalCurrentTime(audio.currentTime); // Only update local state
+    }
+  }, []);
+
   useEffect(() => {
+    // Destructure store actions and state inside the effect for stability
+    const {
+      audioContext,
+      isPlaying,
+      duration,
+      setAudioBuffer,
+      setCurrentTime,
+      setIsPlaying,
+      setDuration,
+      setAudioMetadata,
+      setAudioContext,
+      audioMetadata
+    } = store;
+
     const audio = audioElementRef.current;
     if (!audio) return;
 
+    // Memoized event handlers
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
     };
 
     const handlePlay = () => setIsPlaying(true);
@@ -107,11 +116,6 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       console.warn(`Initial volume state was non-finite: ${volume}. Setting audio element volume to 1.`);
       audio.volume = 1; // Fallback to a safe default
     }
-    if (isFinite(audio.volume)) {
-        setVolume(audio.volume);
-    }
-
-
     // Expose audio element
     if (audioRef) {
       audioRef.current = audio;
@@ -125,7 +129,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [audioContext, setAudioBuffer, setCurrentTime, setIsPlaying, setDuration, volume, audioRef]); // Specific store values/functions in deps
+  }, [store, audioRef, handleTimeUpdate, volume]);
 
   // Check if text needs scrolling when title or artist changes
   useEffect(() => {
@@ -166,6 +170,8 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     const audio = audioElementRef.current;
     if (audio) {
       audio.currentTime = time;
+      setLocalCurrentTime(time); // Update local state
+      setCurrentTime(time); // Sync global store only on seek
     }
   };
 
@@ -221,18 +227,12 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     // import axiosInstance from '../../api/axiosInstance'; // Path might need adjustment
 
     try {
-      console.log('Starting audio analysis API call...');
-      const startTime = performance.now();
-
       // Use the new axiosInstance
       const response = await axiosInstance.post('/audio/analyze?analysis_type=full', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-
-      const endTime = performance.now();
-      console.log(`Audio analysis API call finished in ${((endTime - startTime) / 1000).toFixed(2)} seconds.`);
 
       // Axios automatically throws for non-2xx responses, so error handling is primarily in the interceptor.
       // Successful response handling:
@@ -420,7 +420,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
               {trackArtist || 'Unknown Artist'}
             </div>
             <div className="time-display">
-              {formatTime(currentTime)} / {formatTime(duration)} {/* Use destructured currentTime and duration */}
+              {formatTime(localCurrentTime)} / {formatTime(duration)} {/* Use localCurrentTime for playback position */}
             </div>
           </div>
         </div>

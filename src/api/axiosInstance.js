@@ -27,7 +27,7 @@ const axiosInstance = axios.create({
   // Attempt to use Vite environment variable for base URL
   // Fallback for environments where it might not be set (e.g. some test runners if not configured)
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api', // Added /api
-  timeout: 10000, // Optional: 10 second timeout
+  timeout: 30000, // Optional: 30 second timeout
   // headers: { 'Content-Type': 'application/json' } // Default, but can be set
 });
 

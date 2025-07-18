@@ -1,0 +1,16 @@
+# Backend Dockerfile for FastAPI app
+
+FROM python:3.11-slim
+WORKDIR /app
+COPY . .
+RUN pip install --upgrade pip setuptools wheel
+RUN pip install -r requirements.txt
+
+# Copy example env (user should provide real .env in production)
+COPY .env.example .env
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# To build: docker build -f backend/Dockerfile.backend -t monograuvi-backend backend
+# To run: docker run -p 8000:8000 monograuvi-backend

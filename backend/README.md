@@ -210,6 +210,41 @@ brew install portaudio ffmpeg
 pip install --upgrade pip setuptools wheel
 ```
 
+## Docker Setup
+
+You can run the backend using Docker:
+
+```bash
+docker build -f Dockerfile.backend -t monograuvi-backend .
+docker run -p 8000:8000 --env-file .env monograuvi-backend
+```
+
+Or use docker-compose for full stack:
+
+```bash
+docker-compose up --build
+```
+
+## CI/CD
+
+Continuous integration is set up via GitHub Actions in [.github/workflows/ci.yml](../.github/workflows/ci.yml).
+- Runs backend tests with pytest
+- Builds Docker images
+
+## Environment Variables
+
+See `.env.example` for all required variables. Always change `ADMIN_USERNAME` and `ADMIN_PASSWORD` before deploying to production.
+
+## Versioning
+
+Backend is versioned as **1.0.0**. See [requirements.txt](requirements.txt) for dependency versions.
+
+## Security
+
+- Change default admin credentials in `.env` before deploying
+- Never commit secrets to version control
+- Follow best practices for environment variable management
+
 ## Contributing
 
 1. Fork the repository

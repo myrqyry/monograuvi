@@ -5,7 +5,7 @@ const colors = require('colors');
 
 async function waitForBackend() {
   const maxAttempts = 30;  // 30 attempts * 1s = 30s max wait
-  const backendUrl = 'http://localhost:8000/health';
+  const backendUrl = 'http://localhost:8001/health';
   
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -45,8 +45,8 @@ async function main() {
   // Keep the process alive
   if (isBackendReady) {
     console.log('\n  Development server is running!'.green);
-    console.log('  - Frontend: '.white + 'http://localhost:3000'.cyan.underline);
-    console.log('  - Backend API: '.white + 'http://localhost:8000'.cyan.underline);
+    console.log('  - Frontend: '.white + 'http://localhost:5173'.cyan.underline);
+    console.log('  - Backend API: '.white + 'http://localhost:8001'.cyan.underline);
     console.log('\n  Press Ctrl+C to stop the server\n'.dim);
     
     // Keep the process alive

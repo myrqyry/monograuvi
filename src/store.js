@@ -8,7 +8,9 @@ const useStore = create((set, get) => ({
 
   // --- Existing LiteGraph Node graph state ---
   audioContext: null,
-setAudioContext: (audioContext) => set({ audioContext }),
+  audioContextStatus: 'uninitialized', // 'uninitialized', 'pending', 'running', 'suspended', 'closed', 'error'
+  setAudioContext: (audioContext) => set({ audioContext }),
+  setAudioContextStatus: (status) => set({ audioContextStatus: status }),
   
   // --- Rete.js Graph State ---
   reteGraph: {

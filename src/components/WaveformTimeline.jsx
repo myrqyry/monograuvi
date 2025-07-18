@@ -1,16 +1,24 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import { shallow } from 'zustand/shallow';
 import useStore from '../store';
 
 const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
   const canvasRef = useRef(null);
   const waveformCacheCanvas = useMemo(() => document.createElement('canvas'), []);
+  const stateRef = useRef({});
 
   const { audioBuffer, currentTime, duration, isPlaying } = useStore(state => ({
     audioBuffer: state.audioBuffer,
     currentTime: state.currentTime,
     duration: state.duration || 1,
     isPlaying: state.isPlaying,
-  }));
+  }), shallow);
+
+  // Use a ref to hold the latest state to prevent re-creation of callbacks
+  useEffect(() => {
+    stateRef.current = { currentTime, duration, isPlaying };
+  }, [currentTime, duration, isPlaying]);
+
 
   // 1. Draw the static waveform to an offscreen canvas (cache)
   const drawWaveformToCache = useCallback((width, height) => {
@@ -42,8 +50,8 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
 
   // 2. Draw the playhead on the main canvas
   const drawPlayhead = useCallback((ctx, width, height) => {
-    if (duration > 0) {
-      const x = (currentTime / duration) * width;
+    if (stateRef.current.duration > 0) {
+      const x = (stateRef.current.currentTime / stateRef.current.duration) * width;
       ctx.strokeStyle = '#f5c2e7'; // Catppuccin Pink
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -51,7 +59,7 @@ const WaveformTimeline = ({ height = 60, className = '', onSeek }) => {
       ctx.lineTo(x, height);
       ctx.stroke();
     }
-  }, [currentTime, duration]);
+  }, []); // Empty dependency array, uses ref for latest values
 
   // 3. Main drawing function to combine cache and playhead
   const draw = useCallback(() => {
@@ -103,23 +111,23 @@ canvas.height = rect.height * dpr;
     });
     if (canvas) resizeObserver.observe(canvas);
     return () => resizeObserver.disconnect();
-  }, [draw, drawWaveformToCache, audioBuffer, waveformCacheCanvas]);
+  }, [drawWaveformToCache, audioBuffer, waveformCacheCanvas]);
 
 
   // Effect for animation loop
   useEffect(() => {
-      if (isPlaying) {
-          let animationFrameId;
-          const renderLoop = () => {
-              draw();
-              animationFrameId = requestAnimationFrame(renderLoop);
-          };
-          renderLoop();
-          return () => cancelAnimationFrame(animationFrameId);
-      } else {
-          draw(); // Draw once when paused or currentTime changes
-      }
-  }, [isPlaying, draw, currentTime]);
+    if (isPlaying) {
+      let animationFrameId;
+      const renderLoop = () => {
+        draw();
+        animationFrameId = requestAnimationFrame(renderLoop);
+      };
+      renderLoop();
+      return () => cancelAnimationFrame(animationFrameId);
+    } else {
+      draw(); // Draw once when paused or on seek
+    }
+  }, [isPlaying, draw]); // Remove currentTime from dependencies to prevent infinite loop
 
 
   const handleCanvasClick = (e) => {

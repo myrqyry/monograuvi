@@ -12,15 +12,15 @@ class Settings:
     # Server configuration
     HOST: str = os.getenv("HOST", "localhost")
     try:
-        PORT: int = int(os.getenv("PORT", "8000"))
+        PORT: int = int(os.getenv("PORT", "8001"))
     except ValueError as e:
         raise ValueError("Invalid PORT environment variable. Please set it to a valid integer.") from e
     DEBUG: bool = os.getenv("DEBUG", "true").lower() in ["true", "1", "yes"]
     
     # CORS settings
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3001",
+        "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173"
     ]

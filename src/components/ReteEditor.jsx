@@ -76,6 +76,7 @@ export function ReteEditor() {
   const editorContainerRef = useRef(null);
   const setEditorType = useStore(state => state.setEditorType);
   const appAudioContext = useStore(state => state.audioContext);
+  const audioContextStatus = useStore(state => state.audioContextStatus);
 
   const addReteNodeToStore = useStore(state => state.addReteNode);
   const removeReteNodeFromStore = useStore(state => state.removeReteNode);
@@ -126,12 +127,7 @@ export function ReteEditor() {
         setEditorType('rete');
         keepProcessingRef.current = true;
 
-        // Phase 1: Wait for AudioContext to be ready
-        await audioContextManager.initialize();
-        await initManager.waitForComponent('audioContext');
-        if (!mounted) return;
-
-        // Phase 2: Create editor and plugins
+        // Phase 1: Create editor and plugins (without waiting for AudioContext)
         const editor = new NodeEditor();
         const area = new AreaPlugin(editorContainerRef.current);
         const connection = new ConnectionPlugin();
@@ -159,8 +155,9 @@ export function ReteEditor() {
             if (ctx) {
               nodeInstance.setAudioContext(ctx);
             } else {
-              nodeInstance.errorState = "AudioContext not ready.";
-              return null;
+              // Don't return null. Let the node be created, but in an error state.
+              // The node's implementation should handle this state visually.
+              nodeInstance.errorState = "AudioContext not ready. Please click 'Enable Audio'.";
             }
           }
           return nodeInstance;
@@ -424,6 +421,16 @@ export function ReteEditor() {
     };
   }, [appAudioContext]); // Re-run this effect when appAudioContext changes
 
+  const handleEnableAudio = async () => {
+    try {
+      await audioContextManager.requestAndCreateContext();
+    } catch (error) {
+      console.error("Failed to enable audio:", error);
+      setInitError("Could not start audio. Please check browser permissions.");
+      setInitState('ERROR');
+    }
+  };
+
   return (
     <div style={{ width: '100%', height: '800px', border: '1px solid #ccc', position: 'relative' }}>
       {(initState === 'PENDING' || initState === 'INITIALIZING') && (
@@ -432,6 +439,13 @@ export function ReteEditor() {
             <div className="loading-spinner" style={{ marginBottom: 16 }} />
             <p>Initializing audio-visual editor...</p>
           </div>
+        </div>
+      )}
+      {initState === 'READY' && (audioContextStatus === 'uninitialized' || audioContextStatus === 'suspended') && (
+        <div className="rete-audio-prompt" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', zIndex: 20 }}>
+          <button onClick={handleEnableAudio} style={{padding: '12px 24px', fontSize: '18px', cursor: 'pointer'}}>
+            Click to Enable Audio
+          </button>
         </div>
       )}
       {initState === 'ERROR' && (
