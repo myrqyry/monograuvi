@@ -182,37 +182,27 @@ return true;
 
     connectWebSocket(path) {
         if (this.websocketConnected) return;
-        
-        try {
-            const ws = new WebSocket(`ws://localhost:8000${path}`);
-            
-            ws.onopen = () => {
+        // Use shared utility for WebSocket connection
+        const { createWebSocket } = require('../utils/WebSocketUtils.js');
+        this.websocket = createWebSocket({
+            apiEndpoint: this.apiEndpoint,
+            path,
+            onOpen: (ws) => {
                 this.websocketConnected = true;
                 this.onWebSocketConnected(ws);
-            };
-            
-ws.onmessage = (event) => {
-    try {
-        const data = JSON.parse(event.data);
-        this.onWebSocketMessage(data);
-    } catch (error) {
-        console.error(`Failed to parse WebSocket message for node ${this.id}:`, error);
-    }
-};
-            
-            ws.onclose = () => {
+            },
+            onMessage: (data) => {
+                this.onWebSocketMessage(data);
+            },
+            onClose: () => {
                 this.websocketConnected = false;
                 this.onWebSocketDisconnected();
-            };
-            
-            ws.onerror = (error) => {
+            },
+            onError: (error) => {
+                this.errorState = 'WebSocket error';
                 console.error(`WebSocket error for node ${this.id}:`, error);
-            };
-            
-            this.websocket = ws;
-        } catch (error) {
-            console.error(`Failed to connect WebSocket for node ${this.id}:`, error);
-        }
+            }
+        });
     }
 
     onWebSocketConnected(ws) {

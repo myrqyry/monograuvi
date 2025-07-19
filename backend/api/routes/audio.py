@@ -45,9 +45,9 @@ def get_ml_manager() -> MLModelManager:
         raise RuntimeError("MLModelManager not initialized")
     return _ml_manager
 
-async def validate_audio_file(file: UploadFile) -> str:
+async def save_and_validate_audio_file(file: UploadFile) -> str:
     """
-    Validate audio file and return the temporary file path.
+    Save uploaded audio file to a temporary file and validate using shared utility.
 
     Args:
         file: Uploaded file.
@@ -59,15 +59,17 @@ async def validate_audio_file(file: UploadFile) -> str:
         HTTPException: If file validation fails.
     """
     try:
-        # Save uploaded file to a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
             for chunk in iter(lambda: file.file.read(4096), b""):
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        # Validate the file using the new method
-        is_valid, error_message = file_validator.validate_audio_file_from_path(tmp_file_path)
+        # Read file as bytes for validation
+        with open(tmp_file_path, "rb") as f:
+            file_bytes = f.read()
+        is_valid, error_message = file_validator.validate_audio_file(file_bytes, file.filename)
         if not is_valid:
+            os.unlink(tmp_file_path)
             raise HTTPException(status_code=400, detail=f"File validation failed: {error_message}")
 
         logger.info(f"Audio file validation passed: {file.filename}")
@@ -90,7 +92,7 @@ async def upload_audio(
     """Upload and process audio file."""
     try:
         # Validate file and get temporary file path
-        tmp_file_path = await validate_audio_file(file)
+        tmp_file_path = await save_and_validate_audio_file(file)
         
         try:
             # Load and process audio
@@ -129,7 +131,7 @@ async def analyze_audio(
     """Perform comprehensive audio analysis."""
     try:
         # Validate file and get temporary file path
-        tmp_file_path = await validate_audio_file(file)
+        tmp_file_path = await save_and_validate_audio_file(file)
         
         try:
             # Load audio
@@ -205,7 +207,7 @@ async def generate_spectrogram(
             raise HTTPException(status_code=400, detail="Invalid spectrogram type")
         
         # Validate file and get temporary file path
-        tmp_file_path = await validate_audio_file(file)
+        tmp_file_path = await save_and_validate_audio_file(file)
         
         try:
             # Load audio
@@ -246,7 +248,7 @@ async def extract_audio_features(
     tmp_file_path = None
     try:
         # Validate file using robust validation
-        tmp_file_path = await validate_audio_file(file)
+        tmp_file_path = await save_and_validate_audio_file(file)
         
         # Load audio
         audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)

@@ -205,17 +205,28 @@ export class MyBaseReteNode extends ClassicPreset.Node {
 
   connectWebSocket(path) {
     if (this.websocketConnected && this.websocket) return;
-    try {
-      const wsProtocol = this.apiEndpoint.startsWith('https') ? 'wss' : 'ws';
-      const url = new URL(this.apiEndpoint);
-      this.websocket = new WebSocket(`${wsProtocol}://${url.host}/ws${path}`);
-      this.websocket.onopen = () => { this.websocketConnected = true; this.onWebSocketConnected(this.websocket); };
-      this.websocket.onmessage = (event) => { try { const d = JSON.parse(event.data); this.onWebSocketMessage(d); } catch (e) { console.error('WS parse error',e);}};
-      this.websocket.onclose = () => { this.websocketConnected = false; this.onWebSocketDisconnected(); this.websocket = null; };
-      this.websocket.onerror = (e) => { this.errorState = 'WebSocket error'; console.error('WS error',e);};
-    } catch (error) {
-      this.errorState = error.message; console.error('WS connect error', error);
-    }
+    // Use shared utility for WebSocket connection
+    const { createWebSocket } = require('../../utils/WebSocketUtils.js');
+    this.websocket = createWebSocket({
+      apiEndpoint: this.apiEndpoint,
+      path,
+      onOpen: (ws) => {
+        this.websocketConnected = true;
+        this.onWebSocketConnected(ws);
+      },
+      onMessage: (data) => {
+        this.onWebSocketMessage(data);
+      },
+      onClose: () => {
+        this.websocketConnected = false;
+        this.onWebSocketDisconnected();
+        this.websocket = null;
+      },
+      onError: (error) => {
+        this.errorState = 'WebSocket error';
+        console.error('WS error', error);
+      }
+    });
   }
 
   onWebSocketConnected(ws) { /* For subclasses */ }

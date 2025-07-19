@@ -29,73 +29,52 @@ def set_global_instances(video_generator: VideoGenerator, ml_manager: MLModelMan
     _video_generator = video_generator
     _ml_manager = ml_manager
 
-async def validate_audio_file(file: UploadFile) -> str:
+async def save_and_validate_audio_file(file: UploadFile) -> str:
     """
-    Validate audio file and return file content.
-    
-    Args:
-        file: Uploaded file
-        
-    Returns:
-        File content as str
-        
-    Raises:
-        HTTPException: If file validation fails
+    Save uploaded audio file to a temporary file and validate using shared utility.
     """
     try:
-        # Stream file content directly to a temporary file
-        tmp_file_path = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
+            while chunk := await file.read(1024 * 1024):
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
-        
-        # Validate file using robust validation
-        is_valid, error_message = file_validator.validate_audio_file(tmp_file_path, file.filename)
-        
+
+        with open(tmp_file_path, "rb") as f:
+            file_bytes = f.read()
+        is_valid, error_message = file_validator.validate_audio_file(file_bytes, file.filename)
         if not is_valid:
-            os.unlink(tmp_file_path)  # Cleanup temporary file
+            os.unlink(tmp_file_path)
             raise HTTPException(status_code=400, detail=f"Audio file validation failed: {error_message}")
-        
+
         logger.info(f"Audio file validation passed: {file.filename}")
         return tmp_file_path
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error validating audio file {file.filename}: {e}")
         raise HTTPException(status_code=400, detail=f"Audio file validation error: {str(e)}")
 
-async def validate_video_file(file: UploadFile) -> str:
+async def save_and_validate_video_file(file: UploadFile) -> str:
     """
-    Validate video file and return file content.
-    
-    Args:
-        file: Uploaded file
-        
-    Returns:
-        File content as str
-        
-    Raises:
-        HTTPException: If file validation fails
+    Save uploaded video file to a temporary file and validate using shared utility.
     """
     try:
-        # Stream file content directly to a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
+            while chunk := await file.read(1024 * 1024):
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
-        
-        # Validate file using robust validation
-        is_valid, error_message = file_validator.validate_video_file(tmp_file_path, file.filename)
-        
+
+        with open(tmp_file_path, "rb") as f:
+            file_bytes = f.read()
+        is_valid, error_message = file_validator.validate_video_file(file_bytes, file.filename)
         if not is_valid:
-            os.unlink(tmp_file_path)  # Cleanup temporary file
+            os.unlink(tmp_file_path)
             raise HTTPException(status_code=400, detail=f"Video file validation failed: {error_message}")
-        
+
         logger.info(f"Video file validation passed: {file.filename}")
         return tmp_file_path
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -195,13 +174,7 @@ async def create_spectrogram_video(
     """Create a spectrogram visualization video."""
     try:
         # Validate audio file using robust validation
-        content = await validate_audio_file(audio_file)
-        
-        # Save uploaded file temporarily
-        tmp_file_path = None
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.filename).suffix) as tmp_file:
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
+        tmp_file_path = await save_and_validate_audio_file(audio_file)
         
         try:
             # Generate spectrogram video
@@ -272,19 +245,10 @@ async def add_audio_to_video(
     """Combine video with audio track."""
     try:
         # Validate files using robust validation
-        # Stream video file content directly to a temporary file
-        video_tmp_path = None
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.filename).suffix) as video_tmp:
-            while chunk := await video_file.read(1024 * 1024):  # Read in 1MB chunks
-                video_tmp.write(chunk)
-            video_tmp_path = video_tmp.name
-        
-        # Stream audio file content directly to a temporary file
-        audio_tmp_path = None
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.filename).suffix) as audio_tmp:
-            while chunk := await audio_file.read(1024 * 1024):  # Read in 1MB chunks
-                audio_tmp.write(chunk)
-            audio_tmp_path = audio_tmp.name
+        # Validate and save video file
+        video_tmp_path = await save_and_validate_video_file(video_file)
+        # Validate and save audio file
+        audio_tmp_path = await save_and_validate_audio_file(audio_file)
         
         try:
             # Combine video and audio
@@ -324,13 +288,7 @@ async def apply_video_effects(
     """Apply effects to a video."""
     try:
         # Validate video file using robust validation
-        content = await validate_video_file(video_file)
-        
-        # Save uploaded file temporarily
-        tmp_file_path = None
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.filename).suffix) as tmp_file:
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
+        tmp_file_path = await save_and_validate_video_file(video_file)
         
         try:
             # Convert effects to dict format

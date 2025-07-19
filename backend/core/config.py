@@ -12,7 +12,7 @@ class Settings:
     # Server configuration
     HOST: str = os.getenv("HOST", "localhost")
     try:
-        PORT: int = int(os.getenv("PORT", "8001"))
+        PORT: int = int(os.getenv("PORT", "8000"))
     except ValueError as e:
         raise ValueError("Invalid PORT environment variable. Please set it to a valid integer.") from e
     DEBUG: bool = os.getenv("DEBUG", "true").lower() in ["true", "1", "yes"]
@@ -22,7 +22,10 @@ class Settings:
     _frontend_port = os.getenv("VITE_PORT", os.getenv("FRONTEND_PORT", "5173"))
     ALLOWED_ORIGINS: List[str] = [
         f"http://localhost:{_frontend_port}",
-        f"http://127.0.0.1:{_frontend_port}"
+        f"http://127.0.0.1:{_frontend_port}",
+        "http://localhost:5173",
+        "http://localhost",
+        "http://127.0.0.1"
     ]
     # Optionally extend with additional origins from ALLOWED_ORIGINS env
     _extra_origins = os.getenv("ALLOWED_ORIGINS")

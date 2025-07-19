@@ -23,10 +23,17 @@ const showToast = (message, type = 'error') => {
   }
 };
 
+/**
+ * Axios baseURL logic:
+ * - In development, uses VITE_API_BASE_URL or defaults to localhost:8000/api.
+ * - In production (SPA + API on same domain), set VITE_API_BASE_URL to '' at build time for relative API calls.
+ * - See deployment docs for details.
+ */
 const axiosInstance = axios.create({
-  // Attempt to use Vite environment variable for base URL
-  // Fallback for environments where it might not be set (e.g. some test runners if not configured)
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api', // Added /api
+  baseURL:
+    typeof import.meta.env.VITE_API_BASE_URL === 'string'
+      ? import.meta.env.VITE_API_BASE_URL || '/api'
+      : 'http://localhost:8000/api',
   timeout: 30000, // Optional: 30 second timeout
   // headers: { 'Content-Type': 'application/json' } // Default, but can be set
 });
