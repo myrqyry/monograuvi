@@ -56,7 +56,7 @@ npm install
 echo "✅ Node.js dependencies installed successfully"
 
 echo "✨ Setup complete! You can now start the development server with 'npm run dev'"
-echo "   - Frontend: http://localhost:3000"
+echo "   - Frontend: http://localhost:5173"
 echo "   - Backend API: http://localhost:8000"
 
 exit 0

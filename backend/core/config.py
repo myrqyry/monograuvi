@@ -18,12 +18,16 @@ class Settings:
     DEBUG: bool = os.getenv("DEBUG", "true").lower() in ["true", "1", "yes"]
     
     # CORS settings
+    # Dynamically set allowed origins based on frontend port
+    _frontend_port = os.getenv("VITE_PORT", os.getenv("FRONTEND_PORT", "5173"))
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3001",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
+        f"http://localhost:{_frontend_port}",
+        f"http://127.0.0.1:{_frontend_port}"
     ]
+    # Optionally extend with additional origins from ALLOWED_ORIGINS env
+    _extra_origins = os.getenv("ALLOWED_ORIGINS")
+    if _extra_origins:
+        ALLOWED_ORIGINS += [origin.strip() for origin in _extra_origins.split(",") if origin.strip()]
     
     # File upload settings
     KB: int = 1024

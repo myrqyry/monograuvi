@@ -164,11 +164,37 @@ export class MyBaseReteNode extends ClassicPreset.Node {
 
   async callBackendAPI(endpoint, data = {}, method = 'POST') {
     try {
+      let headers = { };
+      let body = undefined;
+
+      if (method !== 'GET') {
+        if (data.video_file instanceof File || data.video_file instanceof Blob) {
+          const formData = new FormData();
+          formData.append('video_file', data.video_file);
+          // Append other data properties to FormData as JSON string or individual fields
+          // For complex objects, it's often easier to stringify them
+          const { video_file, ...otherData } = data;
+          formData.append('effects', JSON.stringify(otherData.effects)); // Assuming 'effects' is the only other complex object
+
+          body = formData;
+          // When using FormData, the browser automatically sets the Content-Type header to multipart/form-data
+          // Do not set Content-Type header manually, as it will be incorrect.
+        } else {
+          headers['Content-Type'] = 'application/json';
+          body = JSON.stringify(data);
+        }
+      }
+
       const response = await fetch(`${this.apiEndpoint}${endpoint}`, {
-        method, headers: { 'Content-Type': 'application/json' },
-        body: method !== 'GET' ? JSON.stringify(data) : undefined,
+        method,
+        headers,
+        body,
       });
-      if (!response.ok) throw new Error(`Backend API error: ${response.statusText} (${response.status})`);
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Backend API error: ${response.statusText} (${response.status}) - ${errorBody}`);
+      }
       return await response.json();
     } catch (error) {
       this.errorState = error.message;
@@ -180,7 +206,9 @@ export class MyBaseReteNode extends ClassicPreset.Node {
   connectWebSocket(path) {
     if (this.websocketConnected && this.websocket) return;
     try {
-      this.websocket = new WebSocket(`ws://localhost:8000${path}`);
+      const wsProtocol = this.apiEndpoint.startsWith('https') ? 'wss' : 'ws';
+      const url = new URL(this.apiEndpoint);
+      this.websocket = new WebSocket(`${wsProtocol}://${url.host}/ws${path}`);
       this.websocket.onopen = () => { this.websocketConnected = true; this.onWebSocketConnected(this.websocket); };
       this.websocket.onmessage = (event) => { try { const d = JSON.parse(event.data); this.onWebSocketMessage(d); } catch (e) { console.error('WS parse error',e);}};
       this.websocket.onclose = () => { this.websocketConnected = false; this.onWebSocketDisconnected(); this.websocket = null; };

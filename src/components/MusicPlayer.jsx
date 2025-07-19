@@ -45,6 +45,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     displayBpm = String(audioMetadata.tempo);
   }
 
+  const audioMetadata = store.audioMetadata;
   const displayKey = audioMetadata?.key || 'N/A';
   const analysisError = audioMetadata?.error;
 

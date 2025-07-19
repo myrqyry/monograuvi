@@ -558,14 +558,13 @@ class VisualNode extends BaseNode {
         
         if (this.getProperty('useBackend')) {
             try {
-                const result = await this.callBackendAPI('/api/video/shader-effect', {
-                    input_texture: inputTexture,
-                    shader_type: this.getProperty('shaderType'),
-                    time,
-                    audio_data: audioData,
-                    intensity: this.getProperty('intensity'),
-                    speed: this.getProperty('speed'),
-                    scale: this.getProperty('scale')
+                const result = await this.callBackendAPI('/api/video/apply-effects', {
+                    video_file: inputTexture,
+                    effects: [{
+                        type: this.getProperty('shaderType'),
+                        scale: this.getProperty('scale'),
+                        factor: this.getProperty('intensity')
+                    }]
                 });
                 
                 return {
