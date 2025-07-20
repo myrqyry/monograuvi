@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import MotionLibrary from './MotionLibrary'; // Adjust path as necessary
 import mockMotionDefinitions from '../motions/dance_moves.json';
 

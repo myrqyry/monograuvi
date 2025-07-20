@@ -31,6 +31,9 @@ describe('Playhead', () => {
   ];
 
   beforeEach(() => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn((cb) => cb()));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
     mockGetDanceBlocks = vi.fn().mockReturnValue(sampleBlocks);
     mockSetPlayheadTime = vi.fn();
     mockSetIsDancePlaying = vi.fn();
@@ -46,6 +49,7 @@ describe('Playhead', () => {
     // Allow mocks to update internal state for more realistic testing of setPlayheadTime
     mockSetPlayheadTime.mockImplementation((time) => {
       internalPlayheadTime = time;
+      mockGetPlayheadTime.mockImplementation(() => internalPlayheadTime);
     });
     mockSetIsDancePlaying.mockImplementation((playing) => {
       internalIsPlaying = playing;
@@ -142,7 +146,7 @@ describe('Playhead', () => {
       const initialTime = playhead.getPlayheadTime();
       playhead.clock.getDelta.mockReturnValue(0.1); // Set specific delta for predictability
 
-      vi.advanceTimersByTime(100); // Advance rAF
+      vi.runOnlyPendingTimers(); // Advance rAF
 
       expect(mockSetPlayheadTime).toHaveBeenCalled();
       expect(playhead.getPlayheadTime()).toBeGreaterThan(initialTime); // Time should have advanced
@@ -154,7 +158,7 @@ describe('Playhead', () => {
 
       // Simulate time advancing into the first block (startTime: 0, duration: 2)
       // Tick 1: time = 0 -> 0.1
-      vi.advanceTimersByTime(100); // This triggers tick, which calls setPlayheadTime
+      vi.runOnlyPendingTimers(); // This triggers tick, which calls setPlayheadTime
       expect(mockPlayVRMMotion).toHaveBeenCalledWith(sampleBlocks[0].motionUrl, 0, sampleBlocks[0].duration);
       expect(playhead.currentlyPlayingBlockId).toBe(sampleBlocks[0].id);
     });
@@ -164,14 +168,14 @@ describe('Playhead', () => {
       mockSetPlayheadTime(0); // Start at time 0
 
       // Tick 1: Enter block b1
-      vi.advanceTimersByTime(100);
+      vi.runOnlyPendingTimers();
       expect(mockPlayVRMMotion).toHaveBeenCalledTimes(1);
       expect(playhead.currentlyPlayingBlockId).toBe(sampleBlocks[0].id);
 
       mockPlayVRMMotion.mockClear(); // Clear for next assertion
 
       // Tick 2: Still in block b1 (time = 0.1 -> 0.2)
-      vi.advanceTimersByTime(100);
+      vi.runOnlyPendingTimers();
       expect(mockPlayVRMMotion).not.toHaveBeenCalled(); // Should not be called again for the same block
       expect(playhead.currentlyPlayingBlockId).toBe(sampleBlocks[0].id);
     });
@@ -181,7 +185,7 @@ describe('Playhead', () => {
       mockSetPlayheadTime(0); // Start at time 0
 
       // Tick 1: Enter block b1
-      vi.advanceTimersByTime(100);
+      vi.runOnlyPendingTimers();
       expect(mockPlayVRMMotion).toHaveBeenCalledWith(sampleBlocks[0].motionUrl, 0, sampleBlocks[0].duration);
       mockPlayVRMMotion.mockClear();
 
@@ -189,7 +193,7 @@ describe('Playhead', () => {
       // Current time is ~0.1. Let's advance by 2.5 seconds.
       // Each getDelta is 0.1. We need 24 more ticks to reach 2.5.
       for(let i=0; i < 24; i++) {
-        vi.advanceTimersByTime(100); // Advances by 0.1 each time due to mock getDelta
+        vi.runOnlyPendingTimers(); // Advances by 0.1 each time due to mock getDelta
       }
       // Now playheadTime is ~2.5 after setPlayheadTime has been called by tick()
 
@@ -202,7 +206,7 @@ describe('Playhead', () => {
       mockSetPlayheadTime(0);
 
       // Enter block b1
-      vi.advanceTimersByTime(100);
+      vi.runOnlyPendingTimers();
       expect(playhead.currentlyPlayingBlockId).toBe(sampleBlocks[0].id);
 
       // Advance time past all blocks (e.g., to time 10.0)
@@ -210,7 +214,7 @@ describe('Playhead', () => {
       // Current time is ~0.1. Need to advance well past 4.0.
       // Let's advance by 5 seconds (50 ticks of 0.1s)
       for(let i=0; i < 50; i++) {
-        vi.advanceTimersByTime(100);
+        vi.runOnlyPendingTimers();
       }
       // The tick that moves time past the end of b2 should clear currentlyPlayingBlockId
       expect(playhead.currentlyPlayingBlockId).toBeNull();

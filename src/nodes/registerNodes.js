@@ -34,6 +34,7 @@ import { PreviewReteNode } from './rete/PreviewReteNode';
 import { SocialExportReteNode } from './rete/SocialExportReteNode';
 import { RealTimeReteNode } from './rete/RealTimeReteNode';
 import { UnrealBloomReteNode } from './rete/UnrealBloomReteNode';
+import { PostprocessingReteNode } from './rete/PostprocessingNode';
 
 // Import Three.js Nodes
 import { ThreeJSBaseNode } from '../threejs/core/ThreeJSBaseNode';
@@ -167,6 +168,12 @@ function registerAllNodeTypes() {
     category: 'Visual',
     description: 'Applies an Unreal Bloom effect to the scene.',
     icon: '✨'
+  });
+
+  registerNodeType('visual/post-processing', PostprocessingReteNode, {
+      category: 'Visual',
+      description: 'Applies a chain of post-processing effects to the scene.',
+      icon: '🎨'
   });
 
   // Three.js Core Nodes
@@ -321,7 +328,7 @@ registerAllNodeTypes();
 // Define node categories for the UI
 const nodeCategories = {
   Audio: ['audio/source', 'audio/filter', 'audio/lyric-transcriber'],
-  Visual: ['visual/particles', 'visual/waveform', 'visual/spectrum', 'visual/shader', 'visual/unreal-bloom'],
+  Visual: ['visual/particles', 'visual/waveform', 'visual/spectrum', 'visual/shader', 'visual/unreal-bloom', 'visual/post-processing'],
   Motion: ['motion/dance'],
   Control: ['control/lfo', 'control/envelope', 'control/playhead'],
   'Three.js/Core': [
@@ -442,6 +449,7 @@ const nodeTypeMapping = {
   'visual/spectrum': 'Visual',
   'visual/shader': 'Visual',
   'visual/unreal-bloom': 'Visual',
+  'visual/post-processing': 'Visual',
   'motion/dance': 'Motion',
   'control/lfo': 'Control',
   'control/envelope': 'Control',
@@ -478,6 +486,7 @@ const nodeDescriptions = {
   'visual/spectrum': 'Displays audio spectrum visualization',
   'visual/shader': 'Applies custom shader effects',
   'visual/unreal-bloom': 'Applies an Unreal Bloom effect to the scene.',
+  'visual/post-processing': 'Applies a chain of post-processing effects to the scene.',
   'motion/dance': 'Controls dance motion animations',
   'control/lfo': 'Low Frequency Oscillator for modulation',
   'control/envelope': 'Envelope generator for modulation',
