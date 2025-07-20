@@ -4,6 +4,7 @@ import { shallow } from 'zustand/shallow';
 import useStore from '../store';
 import WaveformTimeline from './WaveformTimeline';
 import axiosInstance from '../api/axiosInstance';
+import { audioContextManager } from '../core/AudioContextManager'; // Import the manager
 
 // storeSelector defined outside the component for stability
 const storeSelector = state => ({
@@ -17,7 +18,8 @@ const storeSelector = state => ({
   setDuration: state.setDuration,
   setAudioMetadata: state.setAudioMetadata,
   audioMetadata: state.audioMetadata,
-  setAudioContext: state.setAudioContext
+  setAudioContext: state.setAudioContext,
+  setAudioContextStatus: state.setAudioContextStatus, // Ensure this is in your store
 });
 
 function MusicPlayer({ audioRef, onAudioLoad }) {
@@ -176,7 +178,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
       // Clean up previous audio URL if it exists
@@ -184,35 +186,35 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         URL.revokeObjectURL(audioUrl);
       }
 
-      // Ensure AudioContext is initialized or resumed
-      if (!audioContext) { // Use destructured audioContext
-        const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        setAudioContext(newAudioContext); // Use destructured setAudioContext
-        console.log("AudioContext initialized from MusicPlayer file change.");
-      } else if (audioContext.state === 'suspended') { // Use destructured audioContext
-        audioContext.resume().then(() => { // Use destructured audioContext
-          console.log("AudioContext resumed from MusicPlayer file change.");
-        }).catch(err => console.error("Error resuming AudioContext:", err));
-      }
+      try {
+        // Request and get the AudioContext via the manager
+        const ctx = await audioContextManager.requestAndCreateContext();
+        // The manager is responsible for setting the context in the store and its status.
+        console.log("MusicPlayer: AudioContext requested via manager. State:", ctx.state);
 
-      const url = URL.createObjectURL(file);
-      setAudioUrl(url);
-      setTrackTitle(file.name);
-      setTrackArtist('');
-      setShowLoadModal(false);
-      
-      // Load audio into the audio element
-      const audio = audioElementRef.current;
-      if (audio) {
-        audio.src = url;
-      }
-      
-      if (onAudioLoad) {
-        onAudioLoad(url);
-      }
+        const url = URL.createObjectURL(file);
+        setAudioUrl(url);
+        setTrackTitle(file.name);
+        setTrackArtist('');
+        setShowLoadModal(false);
 
-      // Analyze audio features
-      analyzeAudioFile(file);
+        const audio = audioElementRef.current;
+        if (audio) {
+          audio.src = url;
+        }
+
+        if (onAudioLoad) {
+          onAudioLoad(url);
+        }
+
+        // Analyze audio features (this can proceed once context is ready)
+        analyzeAudioFile(file);
+
+      } catch (error) {
+        console.error("Failed to enable audio via manager:", error);
+        // Handle error, e.g., show a toast notification
+        // The audioContextManager should ideally update the store with an error status too.
+      }
     }
   };
 
