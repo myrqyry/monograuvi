@@ -16,6 +16,7 @@ from pathlib import Path
 import tempfile
 import os
 from .config import settings
+from ..utils.async_utils import run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +34,17 @@ class VideoGenerator:
     async def create_audio_reactive_video(self, 
                                         audio_features: Dict[str, Any],
                                         video_config: Dict[str, Any]) -> str:
-        """Asynchronously create an audio-reactive video. This is a wrapper for the sync version."""
-        # In a real-world scenario with a proper async library for CPU-bound tasks,
-        # this would be handled differently. For now, we call the sync version.
-        return self.create_audio_reactive_video_sync(audio_features, video_config)
+        """Asynchronously create an audio-reactive video by offloading the CPU-bound task."""
+        logger.info("Offloading video generation to a background thread.")
+        return await run_in_thread(
+            self._create_audio_reactive_video_sync,
+            audio_features,
+            video_config
+        )
 
-    def create_audio_reactive_video_sync(self, 
-                                        audio_features: Dict[str, Any],
-                                        video_config: Dict[str, Any]) -> str:
+    def _create_audio_reactive_video_sync(self,
+                                          audio_features: Dict[str, Any],
+                                          video_config: Dict[str, Any]) -> str:
         """Synchronously create an audio-reactive video based on extracted features."""
         try:
             duration = audio_features.get('duration', 30)
@@ -65,24 +69,21 @@ class VideoGenerator:
             for frame_idx in range(total_frames):
                 current_time = frame_idx / fps
                 frame = self._generate_reactive_frame(
-                    current_time, beats, spectral_centroid, tempo, width, height
+                    current_time, beats, spectral_centroid, tempo, width, height, video_config
                 )
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 out.write(frame_bgr)
             
             out.release()
             logger.info(f"Generated audio-reactive video: {output_path}")
-            
-            logger.info(f"Generated audio-reactive video: {output_path}")
             return str(output_path)
             
         except Exception as e:
             logger.error(f"Error creating audio-reactive video: {e}")
             raise
-    
     def _generate_reactive_frame(self, time: float, beats: List[float], 
                                spectral_centroid: List[float], tempo: float,
-                               width: int, height: int) -> np.ndarray:
+                               width: int, height: int, video_config: Dict[str, Any]) -> np.ndarray:
         """Generate a single frame based on audio features."""
         # Create base frame
         frame = np.zeros((height, width, 3), dtype=np.uint8)
@@ -94,11 +95,11 @@ class VideoGenerator:
                 beat_intensity = max(beat_intensity, 1.0 - abs(time - beat_time) * 10)
         
         # Calculate spectral intensity
-        feature_fps = video_config.get('feature_fps', 30)  # Default to 30 if not provided
+        feature_fps = video_config.get('feature_fps', 30)
         frame_idx = int(time * feature_fps)
         if frame_idx < len(spectral_centroid):
             spectral_max = video_config.get('spectral_max', max(spectral_centroid) if spectral_centroid else 4000.0)
-            spectral_intensity = spectral_centroid[frame_idx] / spectral_max  # Normalize
+            spectral_intensity = spectral_centroid[frame_idx] / spectral_max
         else:
             spectral_intensity = 0.5
         
@@ -124,10 +125,10 @@ class VideoGenerator:
         # Frequency bars visualization using frequency-domain data
         if 'frequency_bins' in video_config:
             frequency_bins = video_config['frequency_bins']
-            num_bars = min(len(frequency_bins), 32)  # Limit to 32 bars
+            num_bars = min(len(frequency_bins), 32)
             bar_width = width // num_bars
             for i, bin_value in enumerate(frequency_bins[:num_bars]):
-                bar_height = int(bin_value * height * 0.3)  # Normalize to height
+                bar_height = int(bin_value * height * 0.3)
                 x = i * bar_width
                 y = height - bar_height
                 color_intensity = int(255 * (i / num_bars))
@@ -147,29 +148,32 @@ class VideoGenerator:
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         
         for frame in frames:
-            # Convert RGB to BGR for OpenCV
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             out.write(frame_bgr)
         
         out.release()
     
     async def create_spectrogram_video(self, audio_file: str, 
+                                     video_config: Dict[str, Any],
                                      spectrogram_type: str = 'mel') -> str:
         """Create a video showing animated spectrogram."""
+        return await run_in_thread(
+            self._create_spectrogram_video_sync,
+            audio_file,
+            video_config,
+            spectrogram_type
+        )
+
+    def _create_spectrogram_video_sync(self, audio_file: str,
+                                       video_config: Dict[str, Any],
+                                       spectrogram_type: str = 'mel') -> str:
         try:
             from scipy.signal import spectrogram
             import soundfile as sf
 
-            # Read audio file
             audio_data, sample_rate = sf.read(audio_file)
-
-            # Compute spectrogram
             frequencies, times, Sxx = spectrogram(audio_data, fs=sample_rate, nperseg=1024)
-
-            # Normalize spectrogram for visualization
             Sxx_log = 10 * np.log10(Sxx + 1e-10)
-
-            # Create spectrogram video
             output_path = self.temp_dir / f"spectrogram_{spectrogram_type}.mp4"
             fig, ax = plt.subplots(figsize=(12, 8))
 
@@ -182,7 +186,7 @@ class VideoGenerator:
 
             total_frames = len(times)
             animation_fps = video_config.get('animation_fps', 20)
-            interval = 1000 // animation_fps  # Calculate interval in milliseconds
+            interval = 1000 // animation_fps
             ani = animation.FuncAnimation(fig, animate, frames=total_frames, interval=interval)
             ani.save(str(output_path), writer='ffmpeg', fps=animation_fps)
             plt.close()
@@ -194,17 +198,23 @@ class VideoGenerator:
             logger.error(f"Error creating spectrogram video: {e}")
             raise
     
-    async def add_audio_to_video(self, video_path: str, audio_path: str) -> str:
+    async def add_audio_to_video(self, video_path: str, audio_path: str, video_config: Dict[str, Any]) -> str:
         """Combine video with audio track."""
+        return await run_in_thread(
+            self._add_audio_to_video_sync,
+            video_path,
+            audio_path,
+            video_config
+        )
+
+    def _add_audio_to_video_sync(self, video_path: str, audio_path: str, video_config: Dict[str, Any]) -> str:
         try:
             video_clip = VideoFileClip(video_path)
             audio_clip = AudioFileClip(audio_path)
             
-            # Adjust video duration to match audio
             if video_clip.duration != audio_clip.duration:
                 video_clip = video_clip.loop(duration=audio_clip.duration)
             
-            # Combine video and audio
             final_clip = video_clip.set_audio(audio_clip)
             
             output_path = self.temp_dir / f"final_video_{int(audio_clip.duration)}.mp4"
@@ -216,7 +226,6 @@ class VideoGenerator:
                 fps=output_fps
             )
             
-            # Cleanup
             video_clip.close()
             audio_clip.close()
             final_clip.close()
@@ -231,6 +240,14 @@ class VideoGenerator:
     async def apply_video_effects(self, video_path: str, 
                                 effects: List[Dict[str, Any]]) -> str:
         """Apply various effects to a video."""
+        return await run_in_thread(
+            self._apply_video_effects_sync,
+            video_path,
+            effects
+        )
+
+    def _apply_video_effects_sync(self, video_path: str,
+                                  effects: List[Dict[str, Any]]) -> str:
         try:
             clip = VideoFileClip(video_path)
             
@@ -240,15 +257,12 @@ class VideoGenerator:
                 if effect_type == 'fade_in':
                     duration = effect.get('duration', 1.0)
                     clip = fadein(clip, duration)
-                    
                 elif effect_type == 'fade_out':
                     duration = effect.get('duration', 1.0)
                     clip = fadeout(clip, duration)
-                    
                 elif effect_type == 'resize':
                     scale = effect.get('scale', 1.0)
                     clip = resize(clip, scale)
-                    
                 elif effect_type == 'speed':
                     factor = effect.get('factor', 1.0)
                     clip = clip.fx(lambda c: c.speedx(factor))
@@ -268,6 +282,14 @@ class VideoGenerator:
     async def create_particle_system_video(self, audio_features: Dict[str, Any],
                                          particle_config: Dict[str, Any]) -> str:
         """Create a particle system video synchronized to audio."""
+        return await run_in_thread(
+            self._create_particle_system_video_sync,
+            audio_features,
+            particle_config
+        )
+
+    def _create_particle_system_video_sync(self, audio_features: Dict[str, Any],
+                                           particle_config: Dict[str, Any]) -> str:
         try:
             duration = audio_features.get('duration', 30)
             fps = particle_config.get('fps', 30)
@@ -277,7 +299,6 @@ class VideoGenerator:
             beats = audio_features.get('beats', [])
             spectral_centroid = audio_features.get('spectral_centroid', [])
             
-            # Initialize particles
             num_particles = particle_config.get('num_particles', 100)
             particles = self._initialize_particles(num_particles, width, height)
             
@@ -286,15 +307,10 @@ class VideoGenerator:
             
             for frame_idx in range(total_frames):
                 current_time = frame_idx / fps
-                
-                # Update particles based on audio
-                self._update_particles(particles, current_time, beats, spectral_centroid)
-                
-                # Render frame
+                self._update_particles(particles, current_time, beats, spectral_centroid, width, height)
                 frame = self._render_particles(particles, width, height)
                 frames.append(frame)
             
-            # Save video
             from uuid import uuid4
             unique_id = uuid4().hex
             output_path = self.temp_dir / f"particles_{unique_id}.mp4"
