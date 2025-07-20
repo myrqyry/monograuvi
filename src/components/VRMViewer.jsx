@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { useVMDLoader } from '../hooks/useVMDLoader';
 import useStore from '../store';
 
 // Helper function to recursively dispose of objects in the scene
@@ -42,6 +43,7 @@ const VRMViewer = ({ toggleVisibility }) => {
   const [loadError, setLoadError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMotion, setSelectedMotion] = useState('');
+  const { loadVMD, isLoading: isVMDLoading, error: vmdError } = useVMDLoader();
 
   // Main setup and teardown effect
   useEffect(() => {
@@ -181,7 +183,18 @@ const VRMViewer = ({ toggleVisibility }) => {
     loadVRMModel(url);
   }, [loadVRMModel]);
   
-  // (Motion handling logic would go here, simplified for this example)
+  // Effect to handle motion changes
+  useEffect(() => {
+    if (selectedMotion && vrmRef.current && mixerRef.current) {
+      loadVMD(selectedMotion, vrmRef.current).then((clip) => {
+        if (clip) {
+          mixerRef.current.stopAllAction();
+          const action = mixerRef.current.clipAction(clip);
+          action.play();
+        }
+      });
+    }
+  }, [selectedMotion, loadVMD]);
 
   return (
     <div className="vrm-viewer-panel flex flex-col h-full">
@@ -207,6 +220,26 @@ const VRMViewer = ({ toggleVisibility }) => {
         {isLoading && <div className="loading text-text-secondary">Loading...</div>}
         {loadError && <div className="error text-red-500">{loadError}</div>}
         
+        <div className="motion-controls mt-2">
+          <label className="text-sm text-text-secondary">
+            Select Motion:
+            <select
+              value={selectedMotion}
+              onChange={(e) => setSelectedMotion(e.target.value)}
+              disabled={!vrmRef.current || isVMDLoading}
+              className="ml-2"
+            >
+              <option value="">-- Select a motion --</option>
+              <option value="/motions/01Motion_1.vmd">Motion 1</option>
+              <option value="/motions/01Motion_2.vmd">Motion 2</option>
+              <option value="/motions/01Motion_3.vmd">Motion 3</option>
+              <option value="/motions/01Motion_4.vmd">Motion 4</option>
+            </select>
+          </label>
+          {isVMDLoading && <div className="loading text-text-secondary">Loading motion...</div>}
+          {vmdError && <div className="error text-red-500">{vmdError}</div>}
+        </div>
+
         <div className="viewer-container flex-grow w-full h-full" ref={mountRef}>
           {/* 3D viewer is mounted here */}
         </div>
