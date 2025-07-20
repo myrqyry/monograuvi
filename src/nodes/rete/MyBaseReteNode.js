@@ -52,6 +52,10 @@ export class MyBaseReteNode extends ClassicPreset.Node {
     this.areaPlugin = areaPluginInstance;
   }
 
+  setHistoryRef(historyPlugin) {
+    this.historyRef = historyPlugin;
+  }
+
   setOnPropertyChangeForSync(callback) {
     this.onPropertyChangeForSync = callback;
   }

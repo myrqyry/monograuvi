@@ -34,13 +34,8 @@ export class SimpleVisualReteNode extends MyBaseReteNode {
     const normalizedIntensity = (inputValue + 1) / 2; // Assuming input LFO range -1 to 1
 
     // Check if value actually changed to avoid unnecessary updates
-    const oldIntensity = this.customData.intensity;
-    this.customData.intensity = Math.max(0, Math.min(1, normalizedIntensity)); // Clamp between 0 and 1
-
-    // If the intensity changed, request an update for the node's view
-    if (this.areaPlugin && oldIntensity !== this.customData.intensity) {
-      this.areaPlugin.update('node', this.id);
-    }
+    const newIntensity = Math.max(0, Math.min(1, normalizedIntensity)); // Clamp between 0 and 1
+    this.setPropertyAndRecord('intensity', newIntensity, this.historyRef);
 
     // This node doesn't produce data outputs for other nodes in this simple form
     return {};

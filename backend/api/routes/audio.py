@@ -48,15 +48,7 @@ def get_ml_manager() -> MLModelManager:
 async def save_and_validate_audio_file(file: UploadFile) -> str:
     """
     Save uploaded audio file to a temporary file and validate using shared utility.
-
-    Args:
-        file: Uploaded file.
-
-    Returns:
-        Temporary file path.
-
-    Raises:
-        HTTPException: If file validation fails.
+    Raises HTTPException directly on validation failure, allowing global handler to catch.
     """
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
@@ -64,25 +56,25 @@ async def save_and_validate_audio_file(file: UploadFile) -> str:
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        # Read file as bytes for validation
         with open(tmp_file_path, "rb") as f:
             file_bytes = f.read()
         is_valid, error_message = file_validator.validate_audio_file(file_bytes, file.filename)
         if not is_valid:
             os.unlink(tmp_file_path)
+            # Raise HTTPException directly. Global handler will catch this.
             raise HTTPException(status_code=400, detail=f"File validation failed: {error_message}")
 
         logger.info(f"Audio file validation passed: {file.filename}")
         return tmp_file_path
 
-    except HTTPException:
-        raise
     except OSError as e:
         logger.error(f"File operation error for {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"File operation error: {str(e)}")
+        # Transform generic OS error into an HTTPException (or custom MonograuviBaseException)
+        raise HTTPException(status_code=500, detail=f"File operation error during save: {str(e)}")
     except ValueError as e:
         logger.error(f"Validation error for {file.filename}: {e}")
-        raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+        # Transform ValueError into an HTTPException (or custom MonograuviBaseException)
+        raise HTTPException(status_code=400, detail=f"Validation error during save: {str(e)}")
 
 @router.post("/upload")
 async def upload_audio(
@@ -90,36 +82,38 @@ async def upload_audio(
     audio_processor: AudioProcessor = Depends(get_audio_processor)
 ):
     """Upload and process audio file."""
+    tmp_file_path = None # Initialize outside try for finally block scope
+
     try:
-        # Validate file and get temporary file path
+        # save_and_validate_audio_file now raises HTTPException directly,
+        # which will be caught by the global handler if not caught here.
         tmp_file_path = await save_and_validate_audio_file(file)
         
-        try:
-            # Load and process audio
-            audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+        # Load and process audio
+        audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+
+        # Extract basic features
+        features = await audio_processor.extract_advanced_features(audio_data)
+
+        return JSONResponse({
+            "status": "success",
+            "filename": file.filename,
+            "duration": features.get("duration"),
+            "sample_rate": sample_rate,
+            "features": features,
+            "temp_file": tmp_file_path # Consider if exposing this path is necessary/safe
+        })
             
-            # Extract basic features
-            features = await audio_processor.extract_advanced_features(audio_data)
-            
-            return JSONResponse({
-                "status": "success",
-                "filename": file.filename,
-                "duration": features.get("duration"),
-                "sample_rate": sample_rate,
-                "features": features,
-                "temp_file": tmp_file_path
-            })
-            
-        finally:
-            # Cleanup temporary file
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
-                
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error processing audio upload: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log unexpected errors here, then allow global handler to catch and format
+        logger.error(f"Unexpected error in audio upload route for {file.filename}: {e}", exc_info=True)
+        # Re-raise to be caught by the generic Exception handler in main.py,
+        # which will provide a consistent 500 error response with error_code.
+        raise
+    finally:
+        # Cleanup temporary file regardless of success or failure
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
 
 @router.post("/analyze")
 async def analyze_audio(
@@ -129,65 +123,59 @@ async def analyze_audio(
     ml_manager: MLModelManager = Depends(get_ml_manager)
 ):
     """Perform comprehensive audio analysis."""
+    tmp_file_path = None
     try:
         # Validate file and get temporary file path
         tmp_file_path = await save_and_validate_audio_file(file)
         
-        try:
-            # Load audio
-            audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+        # Load audio
+        audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+
+        # Extract features based on analysis type
+        results = {"filename": file.filename}
+
+        features = None
+        if analysis_type in ["full", "features", "mood", "genre"]:
+            features = await audio_processor.extract_advanced_features(audio_data)
+            results["features"] = features
+
+        if analysis_type in ["full", "key"]:
+            key_analysis = await audio_processor.detect_key_and_scale(audio_data)
+            results["key_analysis"] = key_analysis
+
+        if analysis_type in ["full", "segments"]:
+            segmentation = await audio_processor.segment_audio(audio_data)
+            results["segmentation"] = segmentation
+
+        if analysis_type in ["full", "rhythm"]:
+            rhythm = await audio_processor.extract_rhythm_features(audio_data)
+            results["rhythm"] = rhythm
+
+        if analysis_type in ["full", "mood"]:
+            if features:
+                mood_analysis = await ml_manager.analyze_audio_mood(features)
+                results["mood_analysis"] = mood_analysis
+
+        if analysis_type in ["full", "genre"]:
+            if features:
+                mfcc_features = features.get("mfcc", [])
+                if mfcc_features:
+                    genre_analysis = await ml_manager.classify_audio_genre(mfcc_features)
+                    results["genre_analysis"] = genre_analysis
+
+        return JSONResponse({
+            "status": "success",
+            "analysis_type": analysis_type,
+            "results": results
+        })
             
-            # Extract features based on analysis type
-            results = {"filename": file.filename}
-            
-            features = None
-            if analysis_type in ["full", "features", "mood", "genre"]:
-                features = await audio_processor.extract_advanced_features(audio_data)
-                results["features"] = features
-
-            if analysis_type in ["full", "key"]:
-                key_analysis = await audio_processor.detect_key_and_scale(audio_data)
-                results["key_analysis"] = key_analysis
-
-            if analysis_type in ["full", "segments"]:
-                segmentation = await audio_processor.segment_audio(audio_data)
-                results["segmentation"] = segmentation
-
-            if analysis_type in ["full", "rhythm"]:
-                rhythm = await audio_processor.extract_rhythm_features(audio_data)
-                results["rhythm"] = rhythm
-
-            if analysis_type in ["full", "mood"]:
-                if features:
-                    mood_analysis = await ml_manager.analyze_audio_mood(features)
-                    results["mood_analysis"] = mood_analysis
-
-            if analysis_type in ["full", "genre"]:
-                if features:
-                    mfcc_features = features.get("mfcc", [])
-                    if mfcc_features:
-                        genre_analysis = await ml_manager.classify_audio_genre(mfcc_features)
-                        results["genre_analysis"] = genre_analysis
-            
-            return JSONResponse({
-                "status": "success",
-                "analysis_type": analysis_type,
-                "results": results
-            })
-            
-        finally:
-            # Cleanup temporary file
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
-                
-    except HTTPException:
+    except Exception as e:
+        logger.error(f"Unexpected error in analyze_audio for {file.filename}: {e}", exc_info=True)
         raise
-    except OSError as e:
-        logger.error(f"File operation error during audio analysis for {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"File operation error: {str(e)}")
-    except ValueError as e:
-        logger.error(f"Processing error during audio analysis for {file.filename}: {e}")
-        raise HTTPException(status_code=400, detail=f"Processing error: {str(e)}")
+    finally:
+        # Cleanup temporary file
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
 
 class SpectrogramType(str, Enum):
     MEL = "mel"
@@ -201,6 +189,7 @@ async def generate_spectrogram(
     audio_processor: AudioProcessor = Depends(get_audio_processor)
 ):
     """Generate spectrogram visualization."""
+    tmp_file_path = None
     try:
         # Validate spectrogram type
         if spec_type not in SpectrogramType:
@@ -209,34 +198,27 @@ async def generate_spectrogram(
         # Validate file and get temporary file path
         tmp_file_path = await save_and_validate_audio_file(file)
         
-        try:
-            # Load audio
-            audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+        # Load audio
+        audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+
+        # Generate spectrogram
+        spectrogram_b64 = await audio_processor.generate_spectrogram(audio_data, spec_type)
+
+        return JSONResponse({
+            "status": "success",
+            "spectrogram_type": spec_type,
+            "spectrogram": spectrogram_b64,
+            "sample_rate": sample_rate,
+            "duration": len(audio_data) / sample_rate
+        })
             
-            # Generate spectrogram
-            spectrogram_b64 = await audio_processor.generate_spectrogram(audio_data, spec_type)
-            
-            return JSONResponse({
-                "status": "success",
-                "spectrogram_type": spec_type,
-                "spectrogram": spectrogram_b64,
-                "sample_rate": sample_rate,
-                "duration": len(audio_data) / sample_rate
-            })
-            
-        finally:
-            # Cleanup temporary file
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
-                
-    except HTTPException:
+    except Exception as e:
+        logger.error(f"Unexpected error in generate_spectrogram for {file.filename}: {e}", exc_info=True)
         raise
-    except OSError as e:
-        logger.error(f"File operation error during spectrogram generation for {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"File operation error: {str(e)}")
-    except ValueError as e:
-        logger.error(f"Processing error during spectrogram generation for {file.filename}: {e}")
-        raise HTTPException(status_code=400, detail=f"Processing error: {str(e)}")
+    finally:
+        # Cleanup temporary file
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
 
 @router.post("/extract-features")
 async def extract_audio_features(
@@ -289,11 +271,9 @@ async def extract_audio_features(
             }
         })
             
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error extracting audio features: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error in extract_audio_features for {file.filename}: {e}", exc_info=True)
+        raise
     finally:
         # Cleanup temporary file
         if tmp_file_path and os.path.exists(tmp_file_path):

@@ -43,7 +43,6 @@ src/
     Timeline.jsx
     VisualElements.jsx
     VRMViewer.jsx
-    WaveformTimeline.backup.jsx
     WaveformTimeline.jsx
     rete_controls/
       CheckboxControlComponent.jsx

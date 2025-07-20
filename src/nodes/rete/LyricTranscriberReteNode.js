@@ -55,9 +55,8 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
         const index = this.editableSegments.findIndex(s => s.id === updatedSegment.id);
         if (index !== -1) {
             this.editableSegments[index] = { ...this.editableSegments[index], ...updatedSegment };
-            this.customData.segments = [...this.editableSegments]; // Update customData to trigger React re-render
+            this.setPropertyAndRecord('segments', [...this.editableSegments], this.historyRef);
             this.updateOutputs();
-            if (this.areaPlugin) this.areaPlugin.update('node', this.id);
         }
     }
 
@@ -70,8 +69,8 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
 
     async _preprocessAudio(audioBuffer) {
         // ... (Ported from LiteGraph version)
-        this.setProperty('status', 'Preprocessing...');
-        this.setProperty('progress', 2);
+        this.setPropertyAndRecord('status', 'Preprocessing...', this.historyRef);
+        this.setPropertyAndRecord('progress', 2, this.historyRef);
         const targetSampleRate = 16000;
         if (audioBuffer.sampleRate === targetSampleRate && audioBuffer.numberOfChannels === 1) {
             return audioBuffer.getChannelData(0).slice();
@@ -88,13 +87,13 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
         // ... (Ported from LiteGraph version)
         if (progressInfo.status === 'progress' && progressInfo.file?.includes('model')) {
             const modelLoadProgress = Math.round(progressInfo.progress || 0);
-            this.setProperty('status', `Loading: ${modelLoadProgress}%`);
-            this.setProperty('progress', 10 + Math.round(modelLoadProgress * 0.40));
+            this.setPropertyAndRecord('status', `Loading: ${modelLoadProgress}%`, this.historyRef);
+            this.setPropertyAndRecord('progress', 10 + Math.round(modelLoadProgress * 0.40), this.historyRef);
         } else if (progressInfo.status === 'ready') {
-            this.setProperty('status', 'Model ready.');
-            this.setProperty('progress', 50);
+            this.setPropertyAndRecord('status', 'Model ready.', this.historyRef);
+            this.setPropertyAndRecord('progress', 50, this.historyRef);
         } else if (progressInfo.status === 'download') {
-            this.setProperty('status', `Downloading: ${progressInfo.file.split('/').pop()}`);
+            this.setPropertyAndRecord('status', `Downloading: ${progressInfo.file.split('/').pop()}`, this.historyRef);
         }
     }
 
@@ -105,8 +104,8 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
             const modelName = this.getProperty('modelName');
 
             if (!this.transcriberPipeline || this.lastModelName !== modelName) {
-                this.setProperty('status', 'Initializing model...');
-                this.setProperty('progress', 10);
+                this.setPropertyAndRecord('status', 'Initializing model...', this.historyRef);
+                this.setPropertyAndRecord('progress', 10, this.historyRef);
 
                 // Only download the model if it hasn't been downloaded before
                 if (!window.monograuvi_models) {
@@ -124,8 +123,8 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
                 this.lastModelName = modelName;
             }
 
-            this.setProperty('status', 'Transcribing...');
-            this.setProperty('progress', 55);
+            this.setPropertyAndRecord('status', 'Transcribing...', this.historyRef);
+            this.setPropertyAndRecord('progress', 55, this.historyRef);
 
             const output = await this.transcriberPipeline(audioArray, {
                 language: this.getProperty('language'),
@@ -134,15 +133,15 @@ export class LyricTranscriberReteNode extends MyBaseReteNode {
             });
 
             this.editableSegments = output.chunks.map(c => ({ id: crypto.randomUUID(), text: c.text.trim(), start: c.timestamp[0], end: c.timestamp[1] }));
-            this.customData.segments = [...this.editableSegments];
+            this.setPropertyAndRecord('segments', [...this.editableSegments], this.historyRef);
             this.updateOutputs();
 
-            this.setProperty('status', 'Complete');
-            this.setProperty('progress', 100);
+            this.setPropertyAndRecord('status', 'Complete', this.historyRef);
+            this.setPropertyAndRecord('progress', 100, this.historyRef);
 
         } catch (e) {
-            this.setProperty('status', `Error: ${e.message}`);
-            this.setProperty('progress', 0);
+            this.setPropertyAndRecord('status', `Error: ${e.message}`, this.historyRef);
+            this.setPropertyAndRecord('progress', 0, this.historyRef);
             console.error('Transcription failed', e);
         } finally {
             this.isBusy = false;

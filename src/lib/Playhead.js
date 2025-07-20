@@ -135,7 +135,7 @@ class Playhead {
     // For now, let's manage playheadTime by accumulating delta.
 
     const newPlayheadTime = this.getPlayheadTime() + delta;
-    this.setPlayheadTime(newPlayheadTime);
+    this._updateTime(newPlayheadTime);
 
     const blocks = this.getDanceBlocks();
     let activeBlockFoundThisTick = false;
@@ -179,6 +179,10 @@ class Playhead {
     // if (newPlayheadTime >= totalTimelineDuration && totalTimelineDuration > 0) {
     //   this.stop(); // Or loop: this.setPlayheadTime(0); this.currentlyPlayingBlockId = null;
     // }
+  }
+
+  _updateTime(newPlayheadTime) {
+    this.setPlayheadTime(newPlayheadTime);
   }
 }
 

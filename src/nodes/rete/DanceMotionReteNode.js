@@ -117,14 +117,13 @@ export class DanceMotionReteNode extends MyBaseReteNode {
 
         const isActive = playheadTime >= startTime && playheadTime < (startTime + duration);
 
-        // if (this.areaPlugin) {
-        //     // Example of how to visually update the node when active
-        //     // This would require a custom React component for the node.
-        //     if (this.customData.isActive !== isActive) {
-        //         this.customData.isActive = isActive;
-        //         this.areaPlugin.update('node', this.id);
-        //     }
-        // }
+        if (this.areaPlugin) {
+            // Example of how to visually update the node when active
+            // This would require a custom React component for the node.
+            if (this.getProperty('isActive') !== isActive) {
+                this.setPropertyAndRecord('isActive', isActive, this.historyRef);
+            }
+        }
 
         return {
             // isActive: isActive // Example output

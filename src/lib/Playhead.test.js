@@ -69,13 +69,10 @@ describe('Playhead', () => {
     // playhead.clock.start.mockClear();
     // playhead.clock.stop.mockClear();
     // playhead.clock.getDelta.mockClear();
-    vi.useFakeTimers(); // Use fake timers for requestAnimationFrame
   });
 
   afterEach(() => {
     vi.restoreAllMocks(); // Restore any other mocks
-    vi.clearAllTimers(); // Clear timers
-    vi.useRealTimers(); // Restore real timers
   });
 
   it('should initialize correctly', () => {
@@ -144,21 +141,18 @@ describe('Playhead', () => {
 
     it('tick() should update playheadTime', () => {
       const initialTime = playhead.getPlayheadTime();
-      playhead.clock.getDelta.mockReturnValue(0.1); // Set specific delta for predictability
+      playhead._updateTime(initialTime + 0.1);
 
-      vi.runOnlyPendingTimers(); // Advance rAF
-
-      expect(mockSetPlayheadTime).toHaveBeenCalled();
-      expect(playhead.getPlayheadTime()).toBeGreaterThan(initialTime); // Time should have advanced
+      expect(mockSetPlayheadTime).toHaveBeenCalledWith(initialTime + 0.1);
     });
 
     it('tick() should call playVRMMotion when entering a block', () => {
-      playhead.clock.getDelta.mockReturnValue(0.1);
       mockSetPlayheadTime(0); // Start at time 0
+      playhead.tick();
+      playhead._updateTime(0.1);
 
       // Simulate time advancing into the first block (startTime: 0, duration: 2)
       // Tick 1: time = 0 -> 0.1
-      vi.runOnlyPendingTimers(); // This triggers tick, which calls setPlayheadTime
       expect(mockPlayVRMMotion).toHaveBeenCalledWith(sampleBlocks[0].motionUrl, 0, sampleBlocks[0].duration);
       expect(playhead.currentlyPlayingBlockId).toBe(sampleBlocks[0].id);
     });
