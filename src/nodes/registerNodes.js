@@ -35,6 +35,7 @@ import { SocialExportReteNode } from './rete/SocialExportReteNode';
 import { RealTimeReteNode } from './rete/RealTimeReteNode';
 import { UnrealBloomReteNode } from './rete/UnrealBloomReteNode';
 import { PostprocessingReteNode } from './rete/PostprocessingNode';
+import { VRMExpressionReteNode } from './rete/VRMExpressionNode';
 
 // Import Three.js Nodes
 import { ThreeJSBaseNode } from '../threejs/core/ThreeJSBaseNode';
@@ -298,6 +299,12 @@ function registerAllNodeTypes() {
     icon: '🕺'
   });
 
+  registerNodeType('motion/vrm-expression', VRMExpressionReteNode, {
+    category: 'Motion',
+    description: 'Controls VRM model facial expressions.',
+    icon: '😀'
+  });
+
   // Control Nodes
   registerNodeType('control/lfo', LfoReteNode, {
     category: 'Control',
@@ -329,7 +336,7 @@ registerAllNodeTypes();
 const nodeCategories = {
   Audio: ['audio/source', 'audio/filter', 'audio/lyric-transcriber'],
   Visual: ['visual/particles', 'visual/waveform', 'visual/spectrum', 'visual/shader', 'visual/unreal-bloom', 'visual/post-processing'],
-  Motion: ['motion/dance'],
+  Motion: ['motion/dance', 'motion/vrm-expression'],
   Control: ['control/lfo', 'control/envelope', 'control/playhead'],
   'Three.js/Core': [
     'threejs/core/renderer',
@@ -451,6 +458,7 @@ const nodeTypeMapping = {
   'visual/unreal-bloom': 'Visual',
   'visual/post-processing': 'Visual',
   'motion/dance': 'Motion',
+  'motion/vrm-expression': 'Motion',
   'control/lfo': 'Control',
   'control/envelope': 'Control',
   'control/playhead': 'Control',
@@ -488,6 +496,7 @@ const nodeDescriptions = {
   'visual/unreal-bloom': 'Applies an Unreal Bloom effect to the scene.',
   'visual/post-processing': 'Applies a chain of post-processing effects to the scene.',
   'motion/dance': 'Controls dance motion animations',
+  'motion/vrm-expression': 'Controls VRM model facial expressions.',
   'control/lfo': 'Low Frequency Oscillator for modulation',
   'control/envelope': 'Envelope generator for modulation',
   'control/playhead': 'Controls playback position and timing',
