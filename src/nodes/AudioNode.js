@@ -1,4 +1,6 @@
 import BaseNode from './BaseNode.js';
+import { AUDIO_NODE_CONFIG } from '../constants/audio';
+import logger from '../utils/logger';
 
 class AudioNode extends BaseNode {
     constructor(type = 'analyser', options = {}) {
@@ -60,8 +62,8 @@ class AudioNode extends BaseNode {
             return { success: true, data: result };
         } catch (error) {
             this.lastError = error;
-            console.error(`Backend API error for ${endpoint}:`, error.message || error);
-            console.warn(`Falling back to frontend processing for ${fallbackType}`);
+            logger.error(`Backend API error for ${endpoint}:`, error.message || error);
+            logger.warn(`Falling back to frontend processing for ${fallbackType}`);
             return { success: false, data: this.generateFallbackData(fallbackType, fallbackConfig) };
         }
     }
@@ -100,7 +102,7 @@ class AudioNode extends BaseNode {
         this.addOutput('Volume', 'number', { description: 'Current volume level' });
         
         this.addProperty('volume', 1.0, { 
-            min: 0, max: 2, step: 0.1, 
+            min: AUDIO_NODE_CONFIG.volume.min, max: AUDIO_NODE_CONFIG.volume.max, step: AUDIO_NODE_CONFIG.volume.step,
             description: 'Master volume control',
             category: 'Audio'
         });
@@ -629,7 +631,7 @@ class AudioNode extends BaseNode {
     onPropertyChanged(name, value) {
         // Validate property values
         if (name === 'fftSize' && ![256, 512, 1024, 2048, 4096, 8192, 16384].includes(value)) {
-            console.warn(`Invalid fftSize value: ${value}, using default 2048`);
+            logger.warn(`Invalid fftSize value: ${value}, using default 2048`);
             if (this.getProperty('fftSize') !== 2048) {
                 this.setProperty('fftSize', 2048);
             }
@@ -637,7 +639,7 @@ class AudioNode extends BaseNode {
         }
         
         if (name === 'minBPM' && (value < 30 || value > 200)) {
-            console.warn(`Invalid minBPM value: ${value}, resetting to default 60`);
+            logger.warn(`Invalid minBPM value: ${value}, resetting to default 60`);
             if (this.getProperty('minBPM') !== 60) {
                 this.setProperty('minBPM', 60);
             }
@@ -645,7 +647,7 @@ class AudioNode extends BaseNode {
         }
         
         if (name === 'maxBPM' && (value < 80 || value > 300)) {
-            console.warn(`Invalid maxBPM value: ${value}, resetting to default 180`);
+            logger.warn(`Invalid maxBPM value: ${value}, resetting to default 180`);
             if (this.getProperty('maxBPM') !== 180) {
                 this.setProperty('maxBPM', 180);
             }
@@ -660,13 +662,13 @@ class AudioNode extends BaseNode {
 
     reinitializeAnalysis() {
         // Reinitialize analysis components when key properties change
-        console.log(`Reinitializing ${this.audioType} analysis due to property change`);
+        logger.info(`Reinitializing ${this.audioType} analysis due to property change`);
         
         if (this.analyser) {
             try {
                 this.analyser.disconnect();
             } catch (error) {
-                console.warn('Error disconnecting analyser:', error);
+                logger.warn('Error disconnecting analyser:', error);
             }
             this.analyser = null;
         }

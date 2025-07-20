@@ -3,9 +3,10 @@
 class BeatDetectorProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.threshold = 0.1; // Default sensitivity
+        // These values are defined in src/constants/audio.js
+        this.threshold = 0.1; // DEFAULT_BEAT_THRESHOLD
         this.lastBeatTime = 0;
-        this.minTimeBetweenBeats = 0.5;
+        this.minTimeBetweenBeats = 0.5; // DEFAULT_MIN_TIME_BETWEEN_BEATS
 
         this.port.onmessage = (event) => {
             if (event.data.threshold) {

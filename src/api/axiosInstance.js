@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import logger from '../utils/logger';
 
 // Utility to show toast notifications
 // This will be effective once ToastContainer is set up in App.jsx
@@ -29,11 +30,10 @@ const showToast = (message, type = 'error') => {
  * - In production (SPA + API on same domain), set VITE_API_BASE_URL to '' at build time for relative API calls.
  * - See deployment docs for details.
  */
+import { API_BASE_URL } from '../constants/api';
+
 const axiosInstance = axios.create({
-  baseURL:
-    typeof import.meta.env.VITE_API_BASE_URL === 'string'
-      ? import.meta.env.VITE_API_BASE_URL || '/api'
-      : 'http://localhost:8000/api',
+  baseURL: API_BASE_URL,
   timeout: 30000, // Optional: 30 second timeout
   // headers: { 'Content-Type': 'application/json' } // Default, but can be set
 });
@@ -53,7 +53,7 @@ axiosInstance.interceptors.response.use(
     if (error.response) {
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
-      console.error('API Error Response:', error.response);
+      logger.error('API Error Response:', error.response);
       const responseData = error.response.data;
 
       // Use detail from FastAPI error response, then statusText, then default
@@ -84,12 +84,12 @@ axiosInstance.interceptors.response.use(
       }
     } else if (error.request) {
       // The request was made but no response was received
-      console.error('API No Response Error:', error.request);
+      logger.error('API No Response Error:', error.request);
       errorMessage = 'Could not connect to the server. Please check your network connection.';
       errorCode = 'NETWORK_ERROR';
     } else {
       // Something happened in setting up the request that triggered an Error
-      console.error('API Request Setup Error:', error.message);
+      logger.error('API Request Setup Error:', error.message);
       errorMessage = `Error setting up request: ${error.message}`;
       errorCode = 'REQUEST_SETUP_ERROR';
     }

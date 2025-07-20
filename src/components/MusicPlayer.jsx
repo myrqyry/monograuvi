@@ -5,6 +5,10 @@ import useStore from '../store';
 import WaveformTimeline from './WaveformTimeline';
 import axiosInstance from '../api/axiosInstance';
 import { audioContextManager } from '../core/AudioContextManager'; // Import the manager
+import { API_ENDPOINTS } from '../constants/api';
+import { SUPPORTED_AUDIO_FILE_TYPES, SUPPORTED_AUDIO_FORMAT_NAMES } from '../constants/audio';
+import { AppMessages } from '../constants/app';
+import logger from '../utils/logger';
 
 // storeSelector defined outside the component for stability
 const storeSelector = state => ({
@@ -26,8 +30,8 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const audioElementRef = useRef(null);
   const titleRef = useRef(null);
   const artistRef = useRef(null);
-  const [trackTitle, setTrackTitle] = useState('No Track Loaded');
-  const [trackArtist, setTrackArtist] = useState('');
+  const [trackTitle, setTrackTitle] = useState(AppMessages.NO_TRACK_LOADED);
+  const [trackArtist, setTrackArtist] = useState(AppMessages.UNKNOWN_ARTIST);
   const [volume, setVolume] = useState(1);
   const [titleNeedsScroll, setTitleNeedsScroll] = useState(false);
   const [artistNeedsScroll, setArtistNeedsScroll] = useState(false);
@@ -94,13 +98,13 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
           const arrayBuffer = await fetch(audio.src).then(res => res.arrayBuffer());
           const decodedAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           setAudioBuffer(decodedAudioBuffer);
-          console.log('MusicPlayer: AudioBuffer set in store.', {
+          logger.info('MusicPlayer: AudioBuffer set in store.', {
             duration: decodedAudioBuffer.duration,
             length: decodedAudioBuffer.length,
             numberOfChannels: decodedAudioBuffer.numberOfChannels
           });
         } catch (error) {
-          console.error('Error loading audio buffer:', error);
+          logger.error('Error loading audio buffer:', error);
         }
       }
     };
@@ -116,7 +120,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     if (isFinite(volume)) {
       audio.volume = volume;
     } else {
-      console.warn(`Initial volume state was non-finite: ${volume}. Setting audio element volume to 1.`);
+      logger.warn(`Initial volume state was non-finite: ${volume}. Setting audio element volume to 1.`);
       audio.volume = 1; // Fallback to a safe default
     }
     // Expose audio element
@@ -190,7 +194,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         // Request and get the AudioContext via the manager
         const ctx = await audioContextManager.requestAndCreateContext();
         // The manager is responsible for setting the context in the store and its status.
-        console.log("MusicPlayer: AudioContext requested via manager. State:", ctx.state);
+        logger.info("MusicPlayer: AudioContext requested via manager. State:", ctx.state);
 
         const url = URL.createObjectURL(file);
         setAudioUrl(url);
@@ -211,7 +215,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         analyzeAudioFile(file);
 
       } catch (error) {
-        console.error("Failed to enable audio via manager:", error);
+        logger.error("Failed to enable audio via manager:", error);
         // Handle error, e.g., show a toast notification
         // The audioContextManager should ideally update the store with an error status too.
       }
@@ -231,7 +235,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
 
     try {
       // Use the new axiosInstance
-      const response = await axiosInstance.post('/audio/analyze?analysis_type=full', formData, {
+      const response = await axiosInstance.post(`${API_ENDPOINTS.AUDIO_ANALYZE}?analysis_type=full`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -258,10 +262,10 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         if (features?.duration && features.duration !== currentGlobalDuration) {
           setDuration(features.duration); // Use destructured setDuration
         }
-        console.log('Audio analysis successful (axios):', metadata);
+        logger.info('Audio analysis successful (axios):', metadata);
       } else {
         // This case might be less common if backend consistently returns error statuses for failures
-        console.error('Audio analysis returned success status but missing results (axios):', result);
+        logger.error('Audio analysis returned success status but missing results (axios):', result);
         if (setAudioMetadata) { // Use destructured setAudioMetadata
           setAudioMetadata({
             key: 'N/A',
@@ -274,7 +278,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     } catch (error) {
       // The axios interceptor will have already handled showing a toast and logging.
       // This catch block is for any additional component-specific error handling, if needed.
-      console.error('Component-level error after audio analysis attempt (axios):', error.message);
+      logger.error('Component-level error after audio analysis attempt (axios):', error.message);
 
       // Ensure audioMetadata in store reflects an error state if not already set by interceptor
       // This is a bit defensive, as the interceptor should handle it.
@@ -299,7 +303,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
   const handleVolumeChange = (newVolume) => {
     // Ensure newVolume is a finite number before calculations
     if (!isFinite(newVolume)) {
-      console.warn(`handleVolumeChange received non-finite newVolume: ${newVolume}`);
+      logger.warn(`handleVolumeChange received non-finite newVolume: ${newVolume}`);
       return; // Or set to a safe default if appropriate
     }
 
@@ -313,7 +317,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         audio.volume = clampedVolume;
       }
     } else {
-      console.warn(`clampedVolume became non-finite: ${clampedVolume} from newVolume: ${newVolume}`);
+      logger.warn(`clampedVolume became non-finite: ${clampedVolume} from newVolume: ${newVolume}`);
     }
   };
 
@@ -420,7 +424,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
               ref={artistRef}
               className={`track-artist ${artistNeedsScroll ? 'scrolling' : ''}`}
             >
-              {trackArtist || 'Unknown Artist'}
+              {trackArtist || AppMessages.UNKNOWN_ARTIST}
             </div>
             <div className="time-display">
               {formatTime(localCurrentTime)} / {formatTime(duration)} {/* Use localCurrentTime for playback position */}
@@ -477,7 +481,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
             <label className="modal-upload-btn">
               <input
                 type="file"
-                accept="audio/*"
+                accept={SUPPORTED_AUDIO_FILE_TYPES}
                 onChange={handleFileChange}
                 style={{ display: 'none' }}
               />
@@ -485,7 +489,7 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
               Choose Audio File
             </label>
             <div className="supported-formats">
-              <span>Supported formats: MP3, WAV, M4A, FLAC</span>
+              <span>Supported formats: {SUPPORTED_AUDIO_FORMAT_NAMES.join(', ')}</span>
             </div>
             {audioMetadata?.error && !analysisError && ( // Use destructured audioMetadata
               <p style={{ color: 'var(--color-error)', fontSize: '12px', marginTop: '10px' }}>

@@ -69,7 +69,7 @@ class ConnectionManager:
         if token:
             # Simple token validation (e.g., check if it matches a predefined API key or JWT)
             # This is a placeholder. A real implementation would parse and validate JWTs or similar.
-            expected_token = "SUPER_SECRET_TOKEN" # Replace with actual token validation
+            expected_token = settings.INTERNAL_WS_TOKEN # Replace with actual token validation
             return token == expected_token
         return False
 

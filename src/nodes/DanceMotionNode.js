@@ -1,15 +1,15 @@
 import BaseNode from './BaseNode.js';
 import MotionLibrary from '../lib/MotionLibrary';
 import useStore from '../store';
+import { DANCE_MOTION_SNAP_INTERVAL } from '../constants/audio';
+import logger from '../utils/logger';
 
 let motionLibraryInstance = null;
 try {
     motionLibraryInstance = new MotionLibrary();
 } catch (e) {
-    console.error("Failed to initialize MotionLibrary for DanceMotionNode:", e);
+    logger.error("Failed to initialize MotionLibrary for DanceMotionNode:", e);
 }
-
-const SNAP_INTERVAL = 0.5; // Define snap interval in seconds
 
 class DanceMotionNode extends BaseNode {
     constructor(options = {}) {
@@ -76,14 +76,14 @@ class DanceMotionNode extends BaseNode {
     // Called when the node is added to the graph (or equivalent in BaseNode context)
     onAdded() { // Assuming BaseNode will have onAdded/onRemoved hooks called by the LiteGraph wrapper
         super.onAdded && super.onAdded(); // Call parent if it exists
-        console.log(`DanceMotionNode ${this.id}: Added to graph.`);
+        logger.info(`DanceMotionNode ${this.id}: Added to graph.`);
         this.addDanceBlockToStore();
     }
 
     // Called when the node is removed from the graph
     onRemoved() {
         super.onRemoved && super.onRemoved();
-        console.log(`DanceMotionNode ${this.id}: Removed from graph.`);
+        logger.info(`DanceMotionNode ${this.id}: Removed from graph.`);
         const { removeDanceBlock } = useStore.getState();
         removeDanceBlock(this.id.toString());
     }
@@ -91,12 +91,12 @@ class DanceMotionNode extends BaseNode {
     // Called when a property changes
     onPropertyChanged(name, value) {
         super.onPropertyChanged(name, value); // Call parent
-        console.log(`DanceMotionNode ${this.id}: Property Changed - ${name}: ${value}`);
+        logger.info(`DanceMotionNode ${this.id}: Property Changed - ${name}: ${value}`);
 
         if (name === "motionId") {
             this._updateMotionDependentProperties(value, true);
         } else if (name === "startTime") {
-            const snappedValue = Math.round(parseFloat(value) / SNAP_INTERVAL) * SNAP_INTERVAL;
+            const snappedValue = Math.round(parseFloat(value) / DANCE_MOTION_SNAP_INTERVAL) * DANCE_MOTION_SNAP_INTERVAL;
             if (this.getProperty("startTime") !== snappedValue) { // Avoid infinite loop if setter calls onPropertyChanged
                  this.properties.startTime.value = Math.max(0, snappedValue); // Update internal value directly
             }
@@ -121,7 +121,7 @@ class DanceMotionNode extends BaseNode {
             duration: this.getProperty("duration"),
         };
         addDanceBlock(blockData);
-        console.log(`DanceMotionNode ${this.id}: Added block to store`, blockData);
+        logger.info(`DanceMotionNode ${this.id}: Added block to store`, blockData);
 
         if (blockData.motionUrl && typeof window.preloadVRMMotionData === 'function') {
             window.preloadVRMMotionData(blockData.motionUrl);
@@ -139,7 +139,7 @@ class DanceMotionNode extends BaseNode {
             duration: this.getProperty("duration"),
         };
         updateDanceBlock(this.id.toString(), updatedBlockData);
-        console.log(`DanceMotionNode ${this.id}: Updated block in store`, updatedBlockData);
+        logger.info(`DanceMotionNode ${this.id}: Updated block in store`, updatedBlockData);
 
         if (updatedBlockData.motionUrl && typeof window.preloadVRMMotionData === 'function') {
             window.preloadVRMMotionData(updatedBlockData.motionUrl);

@@ -67,4 +67,10 @@ class Settings:
     ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin_user")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin_pass")
 
+    # Internal WebSocket token
+    INTERNAL_WS_TOKEN: str = os.getenv("INTERNAL_WS_TOKEN", "SUPER_SECRET_TOKEN")
+
+    # Spectrogram settings
+    SPECTROGRAM_DPI: int = 150
+
 settings = Settings()

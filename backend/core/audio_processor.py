@@ -142,7 +142,7 @@ class AudioProcessor:
             
             # Convert to base64
             buffer = io.BytesIO()
-            plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+            plt.savefig(buffer, format='png', dpi=settings.SPECTROGRAM_DPI, bbox_inches='tight')
             buffer.seek(0)
             image_base64 = base64.b64encode(buffer.getvalue()).decode()
             plt.close()
