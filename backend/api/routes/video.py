@@ -373,22 +373,32 @@ async def generate_video_from_mood(
 async def download_video(filename: str):
     """Download generated video file."""
     try:
-        # Define a secure base directory for downloads
-        base_download_path = "backend/temp/video"
+        # Use the secure, configured temporary video directory
+        base_download_path = Path(settings.TEMP_VIDEO_DIR)
         
-        # Validate the requested filename against the base path
-        if not file_validator.validate_path_is_safe(base_download_path, filename):
-            raise HTTPException(status_code=400, detail="Invalid or malicious filename provided.")
+        # Ensure the base directory exists and is a directory
+        if not base_download_path.is_dir():
+            logger.error(f"Download directory not found: {base_download_path}")
+            raise HTTPException(status_code=500, detail="Server configuration error: download directory is missing.")
 
-        # Construct secure file path
-        file_path = Path(base_download_path) / Path(filename).name
+        # Sanitize filename to prevent directory traversal in the filename itself
+        clean_filename = Path(filename).name
+        if not clean_filename or clean_filename != filename:
+            raise HTTPException(status_code=400, detail="Invalid filename format.")
+
+        # Construct and resolve the full path securely
+        file_path = (base_download_path / clean_filename).resolve()
+
+        # Final security check: ensure the resolved path is still within the base directory
+        if not file_path.is_relative_to(base_download_path.resolve()):
+            raise HTTPException(status_code=400, detail="Security validation failed for the requested file path.")
         
-        if not file_path.is_file(): # More specific check
-            raise HTTPException(status_code=404, detail="Video file not found or is not a file.")
+        if not file_path.is_file():
+            raise HTTPException(status_code=404, detail="Video file not found.")
         
         return FileResponse(
             path=str(file_path),
-            filename=filename,
+            filename=clean_filename,
             media_type="video/mp4"
         )
         

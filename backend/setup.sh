@@ -48,32 +48,13 @@ if [[ $(python -c "import sys; print(sys.version_info >= (3, 12))") == "True" ]]
     pip install setuptools-scm
 fi
 
-# Try installing core packages first
-echo "📦 Installing core packages..."
-pip install fastapi uvicorn python-multipart websockets
-
-# Install audio processing packages
-echo "🎵 Installing audio processing packages..."
-pip install numpy scipy librosa soundfile matplotlib
-
-# Install ML packages
-echo "🤖 Installing machine learning packages..."
-pip install scikit-learn torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Install remaining packages
-echo "🎬 Installing video and utility packages..."
-pip install opencv-python pillow moviepy plotly seaborn pydantic httpx python-dotenv
-
-# Development packages
-echo "🛠️ Installing development packages..."
-pip install pytest black flake8
+# Install all dependencies from requirements.txt
+echo "📦 Installing all Python dependencies from requirements.txt..."
+pip install -r requirements.txt
 
 echo "✅ Installation complete!"
 echo ""
 echo "To start the server:"
 echo "1. Activate the environment: source venv/bin/activate"
-echo "2. Run the server: python main.py"
+echo "2. Run the server: uvicorn main:app --reload"
 echo "3. Visit: http://localhost:8000/docs"
-echo ""
-echo "If you encounter any issues, try:"
-echo "pip install -r requirements-fixed.txt"
