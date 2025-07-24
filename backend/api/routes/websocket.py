@@ -2,9 +2,9 @@
 WebSocket routes for real-time communication.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Cookie
 from fastapi.security import HTTPBearer, HTTPBasic, HTTPBasicCredentials
-from typing import Dict, List
+from typing import Dict, List, Optional
 import json
 import logging
 import asyncio
@@ -19,24 +19,23 @@ class ConnectionManager:
     """Manages WebSocket connections."""
     
     def __init__(self):
-        # Removed redundant active_connections list
         self.connection_data: Dict[WebSocket, Dict] = {}
     
-    async def connect(self, websocket: WebSocket, token: str = None):
+    async def connect(self, websocket: WebSocket, user: Optional[str] = None):
         """Accept a new WebSocket connection."""
         await websocket.accept()
-        is_authorized = self.verify_token_or_basic_auth(token)
+        is_authorized = user is not None
         self.connection_data[websocket] = {
             "is_authorized": is_authorized,
+            "user": user,
             "connected_at": asyncio.get_event_loop().time()
         }
-        logger.info(f"WebSocket client connected. Authorized: {is_authorized}")
+        logger.info(f"WebSocket client connected. User: {user}, Authorized: {is_authorized}")
     
     def disconnect(self, websocket: WebSocket):
         """Remove a WebSocket connection."""
-# Simplified removal as active_connections is removed
         client_data = self.connection_data.pop(websocket, {})
-        logger.info(f"WebSocket client disconnected.")
+        logger.info(f"WebSocket client disconnected. User: {client_data.get('user')}")
     
     async def send_personal_message(self, message: str, websocket: WebSocket):
         """Send a message to a specific WebSocket."""
@@ -46,39 +45,35 @@ class ConnectionManager:
             logger.error(f"WebSocket error: {e}")
             self.disconnect(websocket)
     
-    async def broadcast(self, message: str):
-        """Broadcast a message to all connected WebSockets."""
+    async def broadcast(self, message: str, authorized_only: bool = False):
+        """Broadcast a message to all connected (and optionally, authorized) WebSockets."""
         disconnected = []
-        for connection in self.connection_data.keys():
+        for connection, data in self.connection_data.items():
+            if authorized_only and not data.get("is_authorized"):
+                continue
             try:
                 await connection.send_text(message)
             except (WebSocketDisconnect, OSError) as e:
                 logger.error(f"WebSocket error during broadcast: {e}")
                 disconnected.append(connection)
         
-        # Clean up disconnected websockets
         for connection in disconnected:
             self.disconnect(connection)
-    
-    def verify_token_or_basic_auth(self, token: str = None) -> bool:
-        """
-        Verify the provided token or basic authentication.
-        For demonstration, a simple check against hardcoded credentials.
-        In a real application, this would involve JWT validation, DB lookup, etc.
-        """
-        if token:
-            # Simple token validation (e.g., check if it matches a predefined API key or JWT)
-            # This is a placeholder. A real implementation would parse and validate JWTs or similar.
-            expected_token = settings.INTERNAL_WS_TOKEN # Replace with actual token validation
-            return token == expected_token
-        return False
 
 # Global connection manager
 manager = ConnectionManager()
 
-async def handle_websocket_messages(websocket: WebSocket, handler: callable, token: str = None):
+async def get_user_from_cookie(websocket: WebSocket, session: Optional[str] = Cookie(None)) -> Optional[str]:
+    """Dependency to get user from session cookie."""
+    if not session:
+        return None
+    # In a real app, you'd decode the session cookie to get the user ID
+    # For this example, we'll just use the session value as the user ID
+    return session
+
+async def handle_websocket_messages(websocket: WebSocket, handler: callable, user: Optional[str]):
     """Helper function to handle WebSocket messages."""
-    await manager.connect(websocket, token)
+    await manager.connect(websocket, user)
     try:
         while True:
             data = await websocket.receive_text()
@@ -107,7 +102,7 @@ async def handle_websocket_messages(websocket: WebSocket, handler: callable, tok
         manager.disconnect(websocket)
 
 @router.websocket("/audio-processing")
-async def websocket_audio_processing(websocket: WebSocket, token: str = None):
+async def websocket_audio_processing(websocket: WebSocket, user: Optional[str] = Depends(get_user_from_cookie)):
     """WebSocket endpoint for real-time audio processing updates."""
     async def audio_handler(websocket, message, is_authorized: bool):
         message_type = message.get("type")
@@ -144,10 +139,10 @@ async def websocket_audio_processing(websocket: WebSocket, token: str = None):
                 }),
                 websocket
             )
-    await handle_websocket_messages(websocket, audio_handler, token)
+    await handle_websocket_messages(websocket, audio_handler, user)
 
 @router.websocket("/video-generation")
-async def websocket_video_generation(websocket: WebSocket, token: str = None):
+async def websocket_video_generation(websocket: WebSocket, user: Optional[str] = Depends(get_user_from_cookie)):
     """WebSocket endpoint for real-time video generation updates."""
     async def video_handler(websocket, message, is_authorized: bool):
         message_type = message.get("type")
@@ -181,10 +176,10 @@ async def websocket_video_generation(websocket: WebSocket, token: str = None):
                 }),
                 websocket
             )
-    await handle_websocket_messages(websocket, video_handler, token)
+    await handle_websocket_messages(websocket, video_handler, user)
 
 @router.websocket("/notifications")
-async def websocket_notifications(websocket: WebSocket, token: str = None):
+async def websocket_notifications(websocket: WebSocket, user: Optional[str] = Depends(get_user_from_cookie)):
     """WebSocket endpoint for general notifications."""
     async def notification_handler(websocket, message, is_authorized: bool):
         if message.get("broadcast"):
@@ -197,12 +192,14 @@ async def websocket_notifications(websocket: WebSocket, token: str = None):
                     websocket
                 )
                 return
+
             await manager.broadcast(
                 json.dumps({
                     "type": "notification",
                     "message": message.get("message"),
                     "timestamp": asyncio.get_event_loop().time()
-                })
+                }),
+                authorized_only=True
             )
         else:
             await manager.send_personal_message(
@@ -212,7 +209,7 @@ async def websocket_notifications(websocket: WebSocket, token: str = None):
                 }),
                 websocket
             )
-    await handle_websocket_messages(websocket, notification_handler, token)
+    await handle_websocket_messages(websocket, notification_handler, user)
 
 # Helper functions for sending updates from other parts of the application
 

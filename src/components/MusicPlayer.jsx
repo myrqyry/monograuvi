@@ -162,14 +162,24 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
     };
   }, [trackTitle, trackArtist]);
 
-  const handlePlayPause = () => {
-    const audio = audioElementRef.current;
-    if (audio) {
-      if (isPlaying) { // Use destructured isPlaying
-        audio.pause();
-      } else {
-        audio.play();
+  const handlePlayPause = async () => {
+    try {
+      // Ensure AudioContext is running before playing
+      const ctx = await audioContextManager.requestAndCreateContext();
+      logger.info("AudioContext is active. State:", ctx.state);
+
+      const audio = audioElementRef.current;
+      if (audio) {
+        if (isPlaying) {
+          audio.pause();
+        } else {
+          // This might be the first playback attempt
+          await audio.play();
+        }
       }
+    } catch (error) {
+      logger.error("Could not start playback due to AudioContext error:", error);
+      // Optionally, show a toast notification to the user here
     }
   };
 
@@ -190,35 +200,23 @@ function MusicPlayer({ audioRef, onAudioLoad }) {
         URL.revokeObjectURL(audioUrl);
       }
 
-      try {
-        // Request and get the AudioContext via the manager
-        const ctx = await audioContextManager.requestAndCreateContext();
-        // The manager is responsible for setting the context in the store and its status.
-        logger.info("MusicPlayer: AudioContext requested via manager. State:", ctx.state);
+      const url = URL.createObjectURL(file);
+      setAudioUrl(url);
+      setTrackTitle(file.name);
+      setTrackArtist('');
+      setShowLoadModal(false);
 
-        const url = URL.createObjectURL(file);
-        setAudioUrl(url);
-        setTrackTitle(file.name);
-        setTrackArtist('');
-        setShowLoadModal(false);
-
-        const audio = audioElementRef.current;
-        if (audio) {
-          audio.src = url;
-        }
-
-        if (onAudioLoad) {
-          onAudioLoad(url);
-        }
-
-        // Analyze audio features (this can proceed once context is ready)
-        analyzeAudioFile(file);
-
-      } catch (error) {
-        logger.error("Failed to enable audio via manager:", error);
-        // Handle error, e.g., show a toast notification
-        // The audioContextManager should ideally update the store with an error status too.
+      const audio = audioElementRef.current;
+      if (audio) {
+        audio.src = url;
       }
+
+      if (onAudioLoad) {
+        onAudioLoad(url);
+      }
+
+      // Analyze audio features
+      analyzeAudioFile(file);
     }
   };
 

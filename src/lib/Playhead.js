@@ -130,10 +130,7 @@ class Playhead {
 
     this.animationFrameId = requestAnimationFrame(() => this.tick());
 
-    const delta = this.clock.getDelta(); // Time since last tick call (affected by clock.start/stop)
-    // Note: clock.elapsedTime could also be used if we want absolute time since start.
-    // For now, let's manage playheadTime by accumulating delta.
-
+    const delta = this.clock.getDelta();
     const newPlayheadTime = this.getPlayheadTime() + delta;
     this._updateTime(newPlayheadTime);
 
@@ -147,12 +144,9 @@ class Playhead {
       if (newPlayheadTime >= blockStartTime && newPlayheadTime < blockEndTime) {
         activeBlockFoundThisTick = true;
         if (this.currentlyPlayingBlockId !== block.id) {
-          // Emit motionEnd for the previous block if there was one
           if (this.currentlyPlayingBlockData) {
             this._emit('motionEnd', { block: this.currentlyPlayingBlockData, playheadTime: newPlayheadTime });
           }
-
-          console.log(`Playhead: Starting block ${block.id} (${block.motionId}) at ${newPlayheadTime.toFixed(2)}s`);
           this.playVRMMotion(block.motionUrl, 0, block.duration);
           this.currentlyPlayingBlockId = block.id;
           this.currentlyPlayingBlockData = block;
@@ -162,23 +156,14 @@ class Playhead {
       }
     }
 
-    // If no block is active at the current time, but a motion was previously playing
     if (!activeBlockFoundThisTick && this.currentlyPlayingBlockId !== null) {
-      console.log(`Playhead: Exited active block region for ${this.currentlyPlayingBlockId}. Current time: ${newPlayheadTime.toFixed(2)}s`);
       if (this.currentlyPlayingBlockData) {
         this._emit('motionEnd', { block: this.currentlyPlayingBlockData, playheadTime: newPlayheadTime });
       }
-      // Optionally tell VRMViewer to play idle, but playVRMMotion handles transitions.
-      // this.playVRMMotion('default_idle', 0, 0);
       this.currentlyPlayingBlockId = null;
       this.currentlyPlayingBlockData = null;
     }
 
-    // Loop behavior (optional, for now stops at end of content)
-    // const totalTimelineDuration = blocks.length > 0 ? Math.max(...blocks.map(b => b.startTime + b.duration)) : 0;
-    // if (newPlayheadTime >= totalTimelineDuration && totalTimelineDuration > 0) {
-    //   this.stop(); // Or loop: this.setPlayheadTime(0); this.currentlyPlayingBlockId = null;
-    // }
   }
 
   _updateTime(newPlayheadTime) {

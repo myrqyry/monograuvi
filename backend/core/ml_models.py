@@ -87,102 +87,64 @@ class MLModelManager:
             self._ready = False
     
     def _load_or_create_audio_classifier(self, model_path: Path):
-        """Load or create audio genre/mood classifier."""
+        """Load audio genre/mood classifier, fail if it doesn't exist."""
+        if not model_path.exists():
+            raise FileNotFoundError(f"Audio classifier model not found at {model_path}")
         try:
-            if model_path.exists():
-                # Load existing model
-                model = AudioClassifier()
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
-                model.to(self.device)
-                model.eval()
-                logger.info("Loaded existing audio classifier")
-            else:
-                # Create new model with random weights
-                model = AudioClassifier()
-                model.to(self.device)
-                model.eval()
-                # Save for future use
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                torch.save(model.state_dict(), model_path)
-                logger.info("Created new audio classifier")
+            model = AudioClassifier()
+            model.load_state_dict(torch.load(model_path, map_location=self.device))
+            model.to(self.device)
+            model.eval()
+            logger.info("Loaded existing audio classifier")
             return model
         except Exception as e:
             logger.error(f"Error loading audio classifier: {e}")
             raise
 
     def _load_or_create_clustering_model(self, model_path: Path):
-        """Load or create clustering model for audio segmentation."""
+        """Load clustering model, fail if it doesn't exist."""
+        if not model_path.exists():
+            raise FileNotFoundError(f"Clustering model not found at {model_path}")
         try:
-            if model_path.exists():
-                # Load existing model
-                model = joblib.load(model_path)
-                logger.info("Loaded existing clustering model")
-            else:
-                # Create new model
-                model = KMeans(n_clusters=8, random_state=42)
-                # Save for future use
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                joblib.dump(model, model_path)
-                logger.info("Created new clustering model")
+            model = joblib.load(model_path)
+            logger.info("Loaded existing clustering model")
             return model
         except Exception as e:
             logger.error(f"Error loading clustering model: {e}")
             raise
 
     def _load_or_create_feature_scaler(self, scaler_path: Path):
-        """Load or create feature scaler."""
+        """Load feature scaler, fail if it doesn't exist."""
+        if not scaler_path.exists():
+            raise FileNotFoundError(f"Feature scaler not found at {scaler_path}")
         try:
-            if scaler_path.exists():
-                # Load existing scaler
-                scaler = joblib.load(scaler_path)
-                logger.info("Loaded existing feature scaler")
-            else:
-                # Create new scaler
-                scaler = StandardScaler()
-                # Save for future use
-                scaler_path.parent.mkdir(parents=True, exist_ok=True)
-                joblib.dump(scaler, scaler_path)
-                logger.info("Created new feature scaler")
+            scaler = joblib.load(scaler_path)
+            logger.info("Loaded existing feature scaler")
             return scaler
         except Exception as e:
             logger.error(f"Error loading feature scaler: {e}")
             raise
 
     async def _load_audio_classifier(self):
-        """Load or create audio genre/mood classifier."""
+        """Load audio genre/mood classifier."""
         model_path = settings.ML_CACHE_DIR / "audio_classifier.pth"
-        
-        try:
-            model = await asyncio.to_thread(self._load_or_create_audio_classifier, model_path)
-            self.models['audio_classifier'] = model
-            self._evict_cache_if_needed()
-        except Exception as e:
-            logger.error(f"Error loading audio classifier: {e}")
-            raise
+        model = await asyncio.to_thread(self._load_or_create_audio_classifier, model_path)
+        self.models['audio_classifier'] = model
+        self._evict_cache_if_needed()
     
     async def _load_clustering_model(self):
-        """Load or create clustering model for audio segmentation."""
+        """Load clustering model for audio segmentation."""
         model_path = settings.ML_CACHE_DIR / "audio_clustering.pkl"
-        
-        try:
-            model = await asyncio.to_thread(self._load_or_create_clustering_model, model_path)
-            self.models['audio_clustering'] = model
-            self._evict_cache_if_needed()
-        except Exception as e:
-            logger.error(f"Error loading clustering model: {e}")
-            raise
+        model = await asyncio.to_thread(self._load_or_create_clustering_model, model_path)
+        self.models['audio_clustering'] = model
+        self._evict_cache_if_needed()
     
     async def _load_feature_scaler(self):
-        """Load or create feature scaler."""
+        """Load feature scaler."""
         scaler_path = settings.ML_CACHE_DIR / "feature_scaler.pkl"
-        
-        try:
-            scaler = await asyncio.to_thread(self._load_or_create_feature_scaler, scaler_path)
-            self.models['feature_scaler'] = scaler
-            self._evict_cache_if_needed()
-        except Exception as e:
-            logger.error(f"Error loading feature scaler: {e}")
-            raise
+        scaler = await asyncio.to_thread(self._load_or_create_feature_scaler, scaler_path)
+        self.models['feature_scaler'] = scaler
+        self._evict_cache_if_needed()
     
     def _run_model_inference(self, model, features_tensor):
         """Run model inference in a separate thread."""

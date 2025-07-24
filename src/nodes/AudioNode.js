@@ -21,50 +21,23 @@ class AudioNode extends BaseNode {
         this.setupAudioNode();
     }
 
-    // Utility method for generating fallback data
-    generateFallbackData(type, config = {}) {
-        const fallbacks = {
-            spectral: {
-                'Spectral Centroid': Math.random() * 2000 + 500,
-                'Spectral Rolloff': Math.random() * 5000 + 2000,
-                'Spectral Flux': Math.random(),
-                'MFCC': new Array(config.mfccCount || 13).fill(0).map(() => Math.random()),
-                'Chroma': new Array(config.chromaBins || 12).fill(0).map(() => Math.random())
-            },
-            beat: {
-                'Beat': Math.random() > 0.8,
-                'BPM': 120 + Math.random() * 40,
-                'Confidence': Math.random(),
-                'Onset': Math.random() > 0.9
-            },
-            key: {
-                'Key': ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][Math.floor(Math.random() * 12)],
-                'Mode': ['major', 'minor'][Math.floor(Math.random() * 2)],
-                'Confidence': Math.random(),
-                'Key Profile': new Array(12).fill(0).map(() => Math.random())
-            },
-            mood: {
-                'Valence': Math.random(),
-                'Energy': Math.random(),
-                'Danceability': Math.random(),
-                'Mood': ['happy', 'sad', 'energetic', 'calm', 'aggressive', 'melancholic'][Math.floor(Math.random() * 6)],
-                'Genre': ['rock', 'pop', 'electronic', 'classical', 'jazz', 'ambient'][Math.floor(Math.random() * 6)]
-            }
-        };
-        return fallbacks[type] || {};
-    }
-
-    // Enhanced backend API call with better error handling
+    // Enhanced backend API call with proper error propagation
     async callBackendAPIWithFallback(endpoint, data, fallbackType, fallbackConfig = {}) {
         try {
             const result = await this.callBackendAPI(endpoint, data);
-            this.lastError = null; // Clear any previous errors
+            this.lastError = null;
+            this.set_error(null); // Clear error message on success
             return { success: true, data: result };
         } catch (error) {
             this.lastError = error;
+            const errorMessage = `Backend API error for ${fallbackType}: ${error.message || 'Unknown error'}`;
             logger.error(`Backend API error for ${endpoint}:`, error.message || error);
-            logger.warn(`Falling back to frontend processing for ${fallbackType}`);
-            return { success: false, data: this.generateFallbackData(fallbackType, fallbackConfig) };
+
+            // Propagate a user-friendly error
+            this.set_error(errorMessage);
+
+            // Return a failure indicator
+            return { success: false, error: errorMessage };
         }
     }
 
@@ -381,23 +354,19 @@ class AudioNode extends BaseNode {
      */
     async processSpectralAnalyser(audioInput) {
         if (this.getProperty('useBackend')) {
-        const API_ENDPOINTS = {
-            SPECTRAL_ANALYSIS: '/api/audio/spectral-analysis',
-        };
+            const API_ENDPOINTS = {
+                SPECTRAL_ANALYSIS: '/api/audio/spectral-analysis',
+            };
 
-        const result = await this.callBackendAPIWithFallback(
-            API_ENDPOINTS.SPECTRAL_ANALYSIS,
-            {
-                audio_data: audioInput,
-                mfcc_count: this.getProperty('mfccCount'),
-                chroma_bins: this.getProperty('chromaBins')
-            },
-            'spectral',
-            {
-                mfccCount: this.getProperty('mfccCount'),
-                chromaBins: this.getProperty('chromaBins')
-            }
-        );
+            const result = await this.callBackendAPIWithFallback(
+                API_ENDPOINTS.SPECTRAL_ANALYSIS,
+                {
+                    audio_data: audioInput,
+                    mfcc_count: this.getProperty('mfccCount'),
+                    chroma_bins: this.getProperty('chromaBins')
+                },
+                'spectral'
+            );
             
             if (result.success) {
                 return {
@@ -408,7 +377,7 @@ class AudioNode extends BaseNode {
                     'Chroma': result.data.chroma
                 };
             } else {
-                return result.data;
+                return this.getErrorOutput();
             }
         } else {
             return this.processSpectralAnalyserFrontend(audioInput);
@@ -439,7 +408,7 @@ class AudioNode extends BaseNode {
                 'Onset': result.data.onset_detected
             };
         } else {
-            return result.data;
+            return this.getErrorOutput();
         }
     }
 
@@ -467,11 +436,12 @@ class AudioNode extends BaseNode {
                     'Key Profile': result.data.key_profile
                 };
             } else {
-                return this.generateFallbackData('key');
+                // On failure, return an empty or error-indicating output
+                return this.getErrorOutput();
             }
         } else {
-            // Frontend fallback
-            return this.generateFallbackData('key');
+            // Frontend fallback (or could be disabled)
+            return this.getErrorOutput({ message: "Frontend processing not available" });
         }
     }
 
@@ -505,11 +475,12 @@ class AudioNode extends BaseNode {
                     'Genre': result.data.genre
                 };
             } else {
-                return this.generateFallbackData('mood');
+                // On failure, return an empty or error-indicating output
+                return this.getErrorOutput();
             }
         } else {
-            // Frontend fallback
-            return this.generateFallbackData('mood');
+            // Frontend fallback (or could be disabled)
+            return this.getErrorOutput({ message: "Frontend processing not available" });
         }
     }
 
