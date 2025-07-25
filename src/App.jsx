@@ -22,6 +22,7 @@ function App() {
   const [theme, setTheme] = useState('catppuccin-mocha');
   const audioRef = useRef(null);
   const [audioContext, setLocalAudioContext] = useState(null);
+  const { setReteGraphState, getReteGraphState } = useStore();
 
   const toggleVRMViewerVisibility = () => {
     setIsVRMViewerVisible(prev => !prev);
@@ -51,6 +52,31 @@ function App() {
     };
   }, []);
 
+  const handleSave = () => {
+    const graphState = getReteGraphState();
+    const data = JSON.stringify(graphState, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rete-graph.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLoad = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = e.target.result;
+        const graphState = JSON.parse(data);
+        setReteGraphState(graphState);
+      };
+      reader.readAsText(file);
+    }
+  };
+
   return (
     <> {/* Use Fragment to allow ToastContainer at the same level as app-container */}
       <div className={`app-container theme-${theme}`}>
@@ -78,6 +104,13 @@ function App() {
               <i className="ri-user-voice-line"></i> // Icon for when VRM viewer is hidden
             )}
           </button>
+          <button onClick={handleSave} title="Save Project">
+            <i className="ri-save-line"></i>
+          </button>
+          <input type="file" id="load-button" style={{ display: 'none' }} onChange={handleLoad} accept=".json" />
+          <label htmlFor="load-button" className="custom-file-upload" title="Load Project">
+            <i className="ri-folder-open-line"></i>
+          </label>
           <h1 className="app-title">monograuvi</h1>
         </div>
         <ThemeSelector currentTheme={theme} onChangeTheme={setTheme} />

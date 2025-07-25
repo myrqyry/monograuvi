@@ -14,9 +14,8 @@ export class AudioSourceReteNode extends MyBaseReteNode {
     this.addOutputWithLabel('audioData', 'Level'); // Outputting a single number (average volume)
     this.addOutputWithLabel('onPlayback', 'Playing'); // Boolean reflecting playback state
 
-    this.addControlWithLabel('audioUrl', 'string', 'Audio URL', {
+    this.addControlWithLabel('audioUrl', 'file', 'Audio File', {
       initial: initialCustomData.audioUrl || './assets/presets/FPreview.mp3', // Default for testing
-      options: { placeholder: 'e.g., ./audio/track.mp3' }
     });
     this.addControlWithLabel('isPlaying', 'boolean', 'Play', {
       initial: initialCustomData.isPlaying || false,

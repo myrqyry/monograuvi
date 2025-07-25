@@ -64,6 +64,8 @@ import NumberControlComponent from './rete_controls/NumberControlComponent';
 import SelectControlComponent from './rete_controls/SelectControlComponent';
 import CheckboxControlComponent from './rete_controls/CheckboxControlComponent';
 import TextControlComponent from './rete_controls/TextControlComponent';
+import FileInputControlComponent from './rete_controls/FileInputControlComponent';
+import ColorPickerControlComponent from './rete_controls/ColorPickerControlComponent';
 import SimpleVisualComponent from './rete_visuals/SimpleVisualComponent';
 
 // A generic CustomNodeWrapper that can be extended
@@ -85,6 +87,7 @@ export function ReteEditor() {
   const addReteConnectionToStore = useStore(state => state.addReteConnection);
   const removeReteConnectionFromStore = useStore(state => state.removeReteConnection);
   const setReteGraphState = useStore(state => state.setReteGraphState);
+  const reteGraph = useStore(state => state.reteGraph);
 
   // New: Initialization state
   const [initState, setInitState] = React.useState('PENDING');
@@ -219,6 +222,27 @@ export function ReteEditor() {
             node(data) {
               return CustomNodeWrapper;
             },
+            control(data) {
+              if (data.type === 'number') {
+                return NumberControlComponent;
+              }
+              if (data.type === 'select') {
+                return SelectControlComponent;
+              }
+              if (data.type === 'boolean') {
+                return CheckboxControlComponent;
+              }
+              if (data.type === 'string') {
+                return TextControlComponent;
+              }
+              if (data.type === 'file') {
+                return FileInputControlComponent;
+              }
+              if (data.type === 'color') {
+                return ColorPickerControlComponent;
+              }
+              return Presets.classic.Control;
+            }
           }
         }));
 
@@ -420,6 +444,54 @@ export function ReteEditor() {
         }
     };
   }, [appAudioContext]); // Re-run this effect when appAudioContext changes
+
+  useEffect(() => {
+    const loadGraph = async () => {
+      if (!editorRef.current || !reteGraph) return;
+      const editor = editorRef.current;
+      await editor.clear();
+
+      const nodeMap = {
+        LfoReteNode, EnvelopeReteNode, AudioFilterReteNode, AudioSourceReteNode,
+        LyricTranscriberReteNode, PlayheadReteNode, DanceMotionReteNode,
+        ParticleSystemReteNode, WaveformReteNode, SpectrumVisualizerReteNode,
+        ShaderEffectReteNode, GeometryRendererReteNode, TextAnimatorReteNode,
+        VideoEffectReteNode, KaleidoscopeReteNode, MandalaReteNode, FlowFieldReteNode,
+        SequencerReteNode, RandomReteNode, ExpressionReteNode, MidiReteNode,
+        ClockReteNode, TriggerReteNode, VideoRenderReteNode, AudioRenderReteNode,
+        StreamOutputReteNode, FileExportReteNode, PreviewReteNode, SocialExportReteNode,
+        RealTimeReteNode, UnrealBloomReteNode, BoxGeometryNode, SphereGeometryNode,
+        MeshStandardMaterialNode, MeshBasicMaterialNode, ShaderMaterialNode,
+        AmbientLightNode, DirectionalLightNode, PointLightNode, SceneNode,
+        PerspectiveCameraNode, MeshNode, AnimationNode, UnrealBloomPassNode,
+        EffectComposerNode, SceneRendererNode, RendererNode
+      };
+
+      for (const nodeData of Object.values(reteGraph.nodes)) {
+        const NodeComponent = nodeMap[nodeData.type];
+        if (NodeComponent) {
+          const node = new NodeComponent(nodeData.customData);
+          node.id = nodeData.id;
+          await editor.addNode(node);
+          const area = editor.getPlugin('rete-area-plugin');
+          await area.translate(node.id, nodeData.position);
+        }
+      }
+      for (const conn of reteGraph.connections) {
+        const sourceNode = editor.getNode(conn.source);
+        const targetNode = editor.getNode(conn.target);
+        if (sourceNode && targetNode) {
+          const sourceOutput = sourceNode.outputs[conn.sourceOutput];
+          const targetInput = targetNode.inputs[conn.targetInput];
+          if (sourceOutput && targetInput) {
+            await editor.addConnection(new ClassicPreset.Connection(sourceNode, conn.sourceOutput, targetNode, conn.targetInput));
+          }
+        }
+      }
+    };
+
+    loadGraph();
+  }, [reteGraph]);
 
   const handleEnableAudio = async () => {
     try {

@@ -18,10 +18,21 @@ class MotionLibrary {
     this._loadMotions();
   }
 
-  _loadMotions() {
+  async _loadMotions() {
     // In a real app, you might fetch this or use dynamic imports
     // For now, we directly import the JSON
-    this.motions = motionDefinitions;
+    const defaultMotions = motionDefinitions;
+
+    try {
+      const response = await fetch('/api/user-motions');
+      const userMotionsData = await response.json();
+      const userMotions = userMotionsData.motions || [];
+      this.motions = [...defaultMotions, ...userMotions];
+    } catch (error) {
+      console.error('Error fetching user motions:', error);
+      this.motions = defaultMotions;
+    }
+
     console.log('MotionLibrary: Motions loaded', this.motions);
   }
 

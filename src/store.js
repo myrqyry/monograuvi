@@ -112,6 +112,8 @@ const useStore = create((set, get) => ({
     reteGraph: newReteGraphState,
   }),
   
+  getReteGraphState: () => get().reteGraph,
+
   // --- Audio actions ---
   setAudioBuffer: (buffer) => set({ 
     audioBuffer: buffer,

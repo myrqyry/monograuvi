@@ -13,7 +13,6 @@ from pathlib import Path
 from functools import lru_cache
 
 from core.audio_processor import AudioProcessor
-from core.ml_models import MLModelManager
 from utils.file_validator import file_validator
 
 router = APIRouter()
@@ -21,13 +20,11 @@ logger = logging.getLogger(__name__)
 
 # Global instances (will be set by main.py)
 _audio_processor: Optional[AudioProcessor] = None
-_ml_manager: Optional[MLModelManager] = None
 
-def set_global_instances(audio_processor: AudioProcessor, ml_manager: MLModelManager):
+def set_global_instances(audio_processor: AudioProcessor):
     """Set global instances from main.py startup."""
-    global _audio_processor, _ml_manager
+    global _audio_processor
     _audio_processor = audio_processor
-    _ml_manager = ml_manager
     logger.info("Global instances set for audio routes")
 
 # Dependency injection with caching
@@ -37,13 +34,6 @@ def get_audio_processor() -> AudioProcessor:
     if _audio_processor is None:
         raise RuntimeError("AudioProcessor not initialized")
     return _audio_processor
-
-@lru_cache(maxsize=1)
-def get_ml_manager() -> MLModelManager:
-    """Get cached MLModelManager instance."""
-    if _ml_manager is None:
-        raise RuntimeError("MLModelManager not initialized")
-    return _ml_manager
 
 async def save_and_validate_audio_file(file: UploadFile) -> str:
     """
@@ -119,8 +109,7 @@ async def upload_audio(
 async def analyze_audio(
     file: UploadFile = File(...),
     analysis_type: str = "full",
-    audio_processor: AudioProcessor = Depends(get_audio_processor),
-    ml_manager: MLModelManager = Depends(get_ml_manager)
+    audio_processor: AudioProcessor = Depends(get_audio_processor)
 ):
     """Perform comprehensive audio analysis."""
     tmp_file_path = None
@@ -135,7 +124,7 @@ async def analyze_audio(
         results = {"filename": file.filename}
 
         features = None
-        if analysis_type in ["full", "features", "mood", "genre"]:
+        if analysis_type in ["full", "features"]:
             features = await audio_processor.extract_advanced_features(audio_data)
             results["features"] = features
 
@@ -150,18 +139,6 @@ async def analyze_audio(
         if analysis_type in ["full", "rhythm"]:
             rhythm = await audio_processor.extract_rhythm_features(audio_data)
             results["rhythm"] = rhythm
-
-        if analysis_type in ["full", "mood"]:
-            if features:
-                mood_analysis = await ml_manager.analyze_audio_mood(features)
-                results["mood_analysis"] = mood_analysis
-
-        if analysis_type in ["full", "genre"]:
-            if features:
-                mfcc_features = features.get("mfcc", [])
-                if mfcc_features:
-                    genre_analysis = await ml_manager.classify_audio_genre(mfcc_features)
-                    results["genre_analysis"] = genre_analysis
 
         return JSONResponse({
             "status": "success",
