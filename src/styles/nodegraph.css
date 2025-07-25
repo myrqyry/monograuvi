@@ -1,0 +1,88 @@
+/* Node Library Styles */
+.node-library {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.search-box input {
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.category-section {
+  margin-bottom: 1rem;
+}
+
+.category-header {
+  @apply flex items-center px-4 py-2 font-medium text-sm;
+  color: var(--text-secondary);
+  background-color: var(--bg-crust);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.category-header i {
+  margin-right: 0.5rem;
+}
+
+.node-list {
+  padding: 0.5rem 0;
+}
+
+.node-item {
+  @apply flex items-center px-4 py-3 cursor-pointer transition-colors;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.node-item:hover {
+  background-color: var(--bg-crust);
+}
+
+.node-icon {
+  @apply flex items-center justify-center w-8 h-8 rounded mr-3;
+  background-color: var(--accent-primary);
+  color: var(--bg-base);
+  font-size: 0.875rem;
+}
+
+.node-info {
+  flex: 1;
+}
+
+.node-name {
+  @apply font-medium text-sm;
+  color: var(--text-primary);
+}
+
+.node-category {
+  @apply text-xs;
+  color: var(--text-secondary);
+}
+
+/* Node Graph Styles */
+.node-graph-container {
+  @apply flex flex-col h-full;
+  background-color: var(--bg-base);
+  position: relative;
+}
+
+.graph-toolbar {
+  @apply flex items-center px-4 py-2 border-b;
+  border-color: var(--border-color);
+  background-color: var(--bg-mantle);
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  @apply p-2 mr-2 rounded transition-colors;
+  color: var(--text-primary);
+}
+
+.toolbar-btn:hover {
+  background-color: var(--bg-crust);
+}

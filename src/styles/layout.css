@@ -1,0 +1,155 @@
+.app-container {
+  @apply flex flex-col h-screen text-white;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.app-header {
+  @apply flex justify-between items-center p-2 border-b;
+  height: 40px;
+  border-color: var(--border-color);
+  background-color: var(--bg-mantle);
+}
+
+.toggle-library-btn {
+  @apply p-2 mr-3 rounded-lg transition-colors;
+  font-size: 1.4rem;
+  color: var(--ctp-mocha-text);
+}
+
+.toggle-library-btn:hover {
+  background-color: var(--ctp-mocha-crust);
+}
+
+.app-title {
+  @apply text-xl font-bold;
+  color: var(--ctp-mocha-lavender);
+}
+
+.main-content {
+  @apply flex flex-1 overflow-hidden;
+}
+
+.node-library-panel {
+  @apply w-48 border-r overflow-y-auto;
+  transition: width 0.3s ease;
+  background-color: var(--bg-mantle);
+  border-color: var(--border-color);
+}
+
+.graph-area {
+  @apply flex-1 relative overflow-hidden;
+  transition: width 0.3s ease;
+}
+
+.graph-area.full-width {
+  width: 100%;
+}
+
+/* Styles for when VRM viewer is closed, graph area should expand */
+.graph-area.vrm-closed-expand {
+  /* Assuming VRM viewer is on the right. If it's a different layout, adjust accordingly. */
+  /* This might need to be more specific if main-content is not a simple flex row. */
+  /* For a flex layout, if vrm-viewer-area is display:none, graph-area should naturally expand if it has flex-grow:1 */
+  /* If fixed widths are involved, this might need to adjust the width of graph-area. */
+  /* For now, assuming flex-grow handles it. Add specific width or grid-column changes if needed. */
+}
+
+.vrm-viewer-area {
+  /* Default width for the VRM viewer area, adjust as needed */
+  /* For example, if using flex basis: */
+  /* flex-basis: 320px; */
+  /* Or if using fixed width: */
+  /* width: 320px; */
+  /* Ensure it doesn't shrink if content is small: */
+  /* flex-shrink: 0; */
+  /* Add transition for smooth open/close if desired, though visibility toggle is instant */
+  /* transition: width 0.3s ease, opacity 0.3s ease; */
+}
+
+
+.control-bar-container {
+  @apply flex border-t;
+  border-color: var(--border-color);
+  background-color: var(--bg-mantle);
+  padding: 0;
+  flex-grow: 0;
+  height: auto;
+  width: 100%;
+}
+
+.combined-controls {
+  @apply flex flex-col w-full;
+  background-color: var(--bg-mantle);
+  flex-grow: 1;
+  height: auto;
+  align-self: flex-start;
+}
+
+.timeline-section {
+  @apply w-full;
+  height: 40px;
+  background-color: var(--bg-mantle);
+}
+
+.timeline-container {
+  @apply p-1 h-full;
+}
+
+/* WaveformTimeline Styles */
+.waveform-timeline {
+  @apply relative w-full;
+  flex-grow: 1;
+  width: 100%;
+  background-color: var(--bg-mantle);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.waveform-canvas {
+  display: block;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.timeline-full-width {
+  width: 100%;
+}
+
+.timeline-help {
+  @apply absolute bottom-1 right-2 text-xs;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.waveform-timeline:hover .timeline-help {
+  opacity: 1;
+}
+
+.music-player-container {
+  @apply w-full;
+  height: 40px;
+  position: relative;
+  backdrop-filter: blur(20px);
+  background: rgba(24, 24, 37, 0.8);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.3);
+}
+
+.music-player-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(203, 166, 247, 0.1) 0%,
+    rgba(137, 180, 250, 0.05) 50%,
+    rgba(249, 226, 175, 0.1) 100%
+  );
+  pointer-events: none;
+}
