@@ -9,7 +9,7 @@ import ThemeSelector from './components/ThemeSelector';
 import WaveformTimeline from './components/WaveformTimeline';
 import useStore from './store';
 import './index.css';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Lazy load VRMViewer component
@@ -26,6 +26,30 @@ function App() {
   const toggleVRMViewerVisibility = () => {
     setIsVRMViewerVisible(prev => !prev);
   };
+
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8000/ws/video-generation');
+
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+    };
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'video_update') {
+        const { status, progress, details } = message.data;
+        toast.info(<div><strong>{status}</strong><br/>{details} - {progress}</div>);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   return (
     <> {/* Use Fragment to allow ToastContainer at the same level as app-container */}

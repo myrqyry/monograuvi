@@ -15,8 +15,10 @@ import logging
 from pathlib import Path
 import tempfile
 import os
+import asyncio
 from .config import settings
 from ..utils.async_utils import run_in_thread
+from ..api.routes.websocket import send_video_update
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +75,13 @@ class VideoGenerator:
                 )
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 out.write(frame_bgr)
+                if frame_idx % 100 == 0:
+                    progress = (frame_idx / total_frames) * 100
+                    asyncio.run(send_video_update({
+                        "status": "processing",
+                        "progress": f"{progress:.2f}%",
+                        "details": f"Encoding frame {frame_idx}/{total_frames}"
+                    }))
             
             out.release()
             logger.info(f"Generated audio-reactive video: {output_path}")
