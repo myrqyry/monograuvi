@@ -110,12 +110,12 @@ export class DanceMotionReteNode extends MyBaseReteNode {
 
     // This node doesn't process data in the traditional sense, it manages state.
     // The data method can be used to output its active state if needed.
-    data(inputs) {
-        const { playheadTime } = useStore.getState();
+    data(inputs, context) {
+        const { currentTime } = context;
         const startTime = this.getProperty('startTime');
         const duration = this.getProperty('duration');
 
-        const isActive = playheadTime >= startTime && playheadTime < (startTime + duration);
+        const isActive = currentTime >= startTime && currentTime < (startTime + duration);
 
         if (this.areaPlugin) {
             // Example of how to visually update the node when active

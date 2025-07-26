@@ -14,10 +14,12 @@ from pathlib import Path
 import os
 from typing import List, Dict, Any
 
-from api.routes import audio, websocket
+from api.routes import audio, video, ml, websocket
 from core.config import settings
 from core.exceptions import MonograuviBaseException # Import custom exception
 from core.audio_processor import AudioProcessor
+from core.video_generator import VideoGenerator
+from core.ml_models import MLModelManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize core components
 audio_processor = AudioProcessor()
+video_generator = VideoGenerator()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,9 +37,11 @@ async def lifespan(app: FastAPI):
     
     # Create necessary directories
     os.makedirs(settings.TEMP_AUDIO_DIR, exist_ok=True)
+    os.makedirs(settings.TEMP_VIDEO_DIR, exist_ok=True)
     
     # Set global instances in route modules
     audio.set_global_instances(audio_processor)
+    video.set_global_instances(video_generator)
     
     logger.info("Backend startup complete!")
     
@@ -100,6 +105,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 # Include API routes
 app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
+app.include_router(video.router, prefix="/api/video", tags=["video"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 
 @app.get("/")
@@ -117,6 +123,7 @@ async def health_check():
     return {
         "status": "healthy",
         "audio_processor": audio_processor.is_ready(),
+        "video_generator": video_generator.is_ready(),
     }
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
 import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
 import { HistoryPlugin, HistoryExtensions } from 'rete-history-plugin';
 import { ContextMenuPlugin, Presets as ContextMenuPresets } from 'rete-context-menu-plugin';
-import { DataflowEngine } from 'rete-engine';
+import { CustomDataflowEngine } from '../core/CustomDataflowEngine';
 import { ClassicPreset } from 'rete';
 import { LfoReteNode } from '../nodes/rete/LfoReteNode';
 import { EnvelopeReteNode } from '../nodes/rete/EnvelopeReteNode';
@@ -40,6 +40,8 @@ import { PreviewReteNode } from '../nodes/rete/PreviewReteNode';
 import { SocialExportReteNode } from '../nodes/rete/SocialExportReteNode';
 import { RealTimeReteNode } from '../nodes/rete/RealTimeReteNode';
 import { UnrealBloomReteNode } from "../nodes/rete/UnrealBloomReteNode"; // Corrected import - this was uncommented in prev version
+import { MoodAnalyserNode } from '../nodes/rete/MoodAnalyserNode';
+import { GenreClassifierNode } from '../nodes/rete/GenreClassifierNode';
 
 // Three.js Node Imports
 import { BoxGeometryNode } from '../threejs/geometry/BoxGeometryNode';
@@ -88,6 +90,7 @@ export function ReteEditor() {
   const removeReteConnectionFromStore = useStore(state => state.removeReteConnection);
   const setReteGraphState = useStore(state => state.setReteGraphState);
   const reteGraph = useStore(state => state.reteGraph);
+  const currentTime = useStore(state => state.currentTime);
 
   // New: Initialization state
   const [initState, setInitState] = React.useState('PENDING');
@@ -113,7 +116,7 @@ export function ReteEditor() {
       }
       try {
         dataflowEngineRef.current.reset();
-        await dataflowEngineRef.current.execute(graphData);
+        await dataflowEngineRef.current.execute(graphData, { currentTime });
       } catch (e) {
         console.error("Error processing graph:", e);
       }
@@ -173,6 +176,8 @@ export function ReteEditor() {
             ['Audio/Audio Source', () => setupNewNode(new AudioSourceReteNode({ isPlaying: false, volume: 0.5 }))],
             ['Audio/Lyric Transcriber', () => setupNewNode(new LyricTranscriberReteNode())],
             ['Audio/Audio Filter', () => setupNewNode(new AudioFilterReteNode())],
+            ['ML/Mood Analyser', () => setupNewNode(new MoodAnalyserNode())],
+            ['ML/Genre Classifier', () => setupNewNode(new GenreClassifierNode())],
             ['Control/LFO', () => setupNewNode(new LfoReteNode({ frequency: 1, waveform: 'sine', sync: false }))],
             ['Control/Envelope', () => setupNewNode(new EnvelopeReteNode())],
             ['Control/Sequencer', () => setupNewNode(new SequencerReteNode())],
@@ -248,7 +253,7 @@ export function ReteEditor() {
 
         HistoryExtensions.keyboard(history);
 
-        const engine = new DataflowEngine({
+        const engine = new CustomDataflowEngine({
           resolve(id) { return editor.getNode(id) || null; }
         });
         dataflowEngineRef.current = engine;

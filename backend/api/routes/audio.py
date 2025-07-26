@@ -13,6 +13,7 @@ from pathlib import Path
 from functools import lru_cache
 
 from core.audio_processor import AudioProcessor
+from core.ml_models import MLModelManager
 from utils.file_validator import file_validator
 
 router = APIRouter()
@@ -20,11 +21,13 @@ logger = logging.getLogger(__name__)
 
 # Global instances (will be set by main.py)
 _audio_processor: Optional[AudioProcessor] = None
+_ml_manager: Optional[MLModelManager] = None
 
-def set_global_instances(audio_processor: AudioProcessor):
+def set_global_instances(audio_processor: AudioProcessor, ml_manager: MLModelManager):
     """Set global instances from main.py startup."""
-    global _audio_processor
+    global _audio_processor, _ml_manager
     _audio_processor = audio_processor
+    _ml_manager = ml_manager
     logger.info("Global instances set for audio routes")
 
 # Dependency injection with caching
@@ -34,6 +37,13 @@ def get_audio_processor() -> AudioProcessor:
     if _audio_processor is None:
         raise RuntimeError("AudioProcessor not initialized")
     return _audio_processor
+
+@lru_cache(maxsize=1)
+def get_ml_manager() -> MLModelManager:
+    """Get cached MLModelManager instance."""
+    if _ml_manager is None:
+        raise RuntimeError("MLModelManager not initialized")
+    return _ml_manager
 
 async def save_and_validate_audio_file(file: UploadFile) -> str:
     """
@@ -253,6 +263,61 @@ async def extract_audio_features(
         raise
     finally:
         # Cleanup temporary file
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
+
+@router.post("/analyze-mood")
+async def analyze_mood(
+    file: UploadFile = File(...),
+    audio_processor: AudioProcessor = Depends(get_audio_processor),
+    ml_manager: MLModelManager = Depends(get_ml_manager)
+):
+    """Analyze the mood of an audio file."""
+    tmp_file_path = None
+    try:
+        tmp_file_path = await save_and_validate_audio_file(file)
+        audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+        features = await audio_processor.extract_advanced_features(audio_data)
+        mood_analysis = await ml_manager.analyze_audio_mood(features)
+        return JSONResponse({
+            "status": "success",
+            "mood": mood_analysis['top_mood']
+        })
+    except Exception as e:
+        logger.error(f"Unexpected error in analyze_mood for {file.filename}: {e}", exc_info=True)
+        raise
+    finally:
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
+
+@router.post("/classify-genre")
+async def classify_genre(
+    file: UploadFile = File(...),
+    audio_processor: AudioProcessor = Depends(get_audio_processor),
+    ml_manager: MLModelManager = Depends(get_ml_manager)
+):
+    """Classify the genre of an audio file."""
+    tmp_file_path = None
+    try:
+        tmp_file_path = await save_and_validate_audio_file(file)
+        audio_data, sample_rate = await audio_processor.load_audio(tmp_file_path)
+        features = await audio_processor.extract_advanced_features(audio_data)
+        mfcc_features = features.get("mfcc", [])
+        if mfcc_features:
+            genre_analysis = await ml_manager.classify_audio_genre(mfcc_features)
+            return JSONResponse({
+                "status": "success",
+                "genre": genre_analysis['top_genre']
+            })
+        else:
+            return JSONResponse({
+                "status": "error",
+                "message": "Could not extract features for genre classification"
+            })
+    except Exception as e:
+        logger.error(f"Unexpected error in classify_genre for {file.filename}: {e}", exc_info=True)
+        raise
+    finally:
         if tmp_file_path and os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
 
